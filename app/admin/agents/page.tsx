@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getAdminSession } from "@/lib/actions/auth-actions";
 import type { Agent } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import RegisterAgentForm from "@/components/admin/RegisterAgentForm";
+import RegisterAgentForm from "@/components/admin/registeragentform";
 
 export default function AdminAgentsPage() {
   const router = useRouter();
