@@ -1,4 +1,4 @@
-import FastagBulkAddForm from '@/components/FastagBulkAddForm';
+import FastagBulkAddForm from '@/components/fastagbulkaddform';
 
 export default function FastagInventoryPage() {
   return (
