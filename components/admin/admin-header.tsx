@@ -15,12 +15,18 @@ export function AdminHeader() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
-    const checkSession = async () => {
-      const session = await getUserSession()
-      setIsAuthenticated(!!session && session.userType === "admin")
+  const checkSession = async () => {
+    const session = await getUserSession()
+    const isAdmin = !!session && session.userType === "admin"
+    setIsAuthenticated(isAdmin)
+
+    if (!isAdmin) {
+      router.push("/admin/login")
     }
-    checkSession()
-  }, [])
+  }
+  checkSession()
+}, [router])
+
 
   const handleLogout = async () => {
     await logoutUser()
@@ -32,17 +38,17 @@ export function AdminHeader() {
     return null
   }
 
-  // If not authenticated and not on login page, redirect to login
-  if (!isAuthenticated && typeof window !== "undefined") {
-    router.push("/admin/login")
-    return null
-  }
+  // // If not authenticated and not on login page, redirect to login
+  // if (!isAuthenticated && typeof window !== "undefined") {
+  //   router.push("/admin/login")
+  //   return null
+  // }
 
   const navItems = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <BarChart3 className="mr-2 h-4 w-4" /> },
     { href: "/admin/fastags", label: "FASTags", icon: <CreditCard className="mr-2 h-4 w-4" /> },
     { href: "/admin/agents", label: "Agents", icon: <UserCircle className="mr-2 h-4 w-4" /> },
-    { href: "/admin/users", label: "Users", icon: <Users className="mr-2 h-4 w-4" /> },
+    { href: "/admin/suppliers", label: "Suppliers", icon: <Users className="mr-2 h-4 w-4" /> },
     { href: "/admin/employees", label: "Employees", icon: <Users className="mr-2 h-4 w-4" /> },
     { href: "/admin/commissions", label: "Commissions", icon: <Package className="mr-2 h-4 w-4" /> },
     { href: "/admin/settings", label: "Settings", icon: <Settings className="mr-2 h-4 w-4" /> },

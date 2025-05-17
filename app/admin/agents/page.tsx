@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Download, Edit, Eye, Plus, Search, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Download, Edit, Eye, Plus, Search, Trash2, Upload, ArrowRightArrowLeft } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getAdminSession } from "@/lib/actions/auth-actions";
 import type { Agent } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import RegisterAgentForm from "@/components/admin/RegisterAgentForm";
+import RegisterAgentForm from "@/components/admin/registeragentform";
+import { Repeat2 } from "lucide-react";
+
 
 export default function AdminAgentsPage() {
   const router = useRouter();
@@ -81,6 +83,14 @@ export default function AdminAgentsPage() {
             <Button className="w-full sm:w-auto" onClick={() => setShowAddForm((prev) => !prev)}>
               <Plus className="mr-2 h-4 w-4" />
               {showAddForm ? "Close Form" : "Add New Agent"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => router.push("/admin/fastags/transfer")}
+            >
+              <Repeat2 className="mr-2 h-4 w-4" />
+              Transfer FASTags
             </Button>
             <Button variant="outline" className="w-full sm:w-auto">
               <Upload className="mr-2 h-4 w-4" /> Import

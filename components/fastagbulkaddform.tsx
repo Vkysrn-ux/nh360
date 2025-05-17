@@ -1,127 +1,133 @@
 "use client";
-import React, { useState, useEffect } from "react";
 
-type Supplier = { id: number; name: string };
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
-export default function FastagBulkAddForm() {
+export default function BulkFastagUploadForm() {
   const [form, setForm] = useState({
     serial_from: "",
     serial_to: "",
     supplier_id: "",
     purchase_date: "",
     purchase_price: "",
-    remarks: "",
+    bank_name: "",
+    fastag_class: "class4",
+    batch_number: "",
+    remarks: ""
   });
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [message, setMessage] = useState("");
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
+  const [banks, setBanks] = useState<string[]>([]);
 
   useEffect(() => {
-    // Fetch suppliers from API
-    fetch("/api/suppliers")
-      .then((res) => res.json())
-      .then(setSuppliers)
-      .catch(() => setSuppliers([]));
+    const loadData = async () => {
+      const [supplierRes, bankRes] = await Promise.all([
+        fetch("/api/suppliers"),
+        fetch("/api/banks")
+      ]);
+      const supplierData = await supplierRes.json();
+      const bankData = await bankRes.json();
+      setSuppliers(supplierData);
+      setBanks(bankData);
+    };
+    loadData();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("Submitting...");
+  const handleUpload = async () => {
     const res = await fetch("/api/fastags/bulk-add", {
       method: "POST",
-      body: JSON.stringify(form),
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        serial_from: parseInt(form.serial_from),
+        serial_to: parseInt(form.serial_to),
+        purchase_price: parseFloat(form.purchase_price)
+      })
     });
-    const data = await res.json();
-    setMessage(data.success ? `✅ Added ${data.count} Fastags!` : `❌ ${data.error}`);
+
+    const result = await res.json();
+    if (result.success) {
+      setMessage(`✅ Uploaded ${result.count} FASTags`);
+    } else {
+      setMessage(`❌ ${result.error}`);
+    }
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-12 p-8 bg-white rounded-2xl shadow-xl">
-      <h2 className="text-2xl font-bold mb-8 text-center">Fastag Inventory - Bulk Add</h2>
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <Card className="max-w-3xl mx-auto">
+      <CardHeader>
+        <CardTitle>Bulk FASTag Upload</CardTitle>
+        <CardDescription>Enter full FASTag info to upload a batch.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>From Serial</Label>
+            <Input name="serial_from" value={form.serial_from} onChange={handleChange} />
+          </div>
+          <div>
+            <Label>To Serial</Label>
+            <Input name="serial_to" value={form.serial_to} onChange={handleChange} />
+          </div>
+          <div>
+            <Label>Supplier</Label>
+            <select name="supplier_id" className="w-full border rounded px-2 py-2" value={form.supplier_id} onChange={handleChange}>
+              <option value="">Select supplier</option>
+              {suppliers.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Purchase Date</Label>
+            <Input type="date" name="purchase_date" value={form.purchase_date} onChange={handleChange} />
+          </div>
+          <div>
+            <Label>Purchase Price (₹)</Label>
+            <Input type="number" name="purchase_price" value={form.purchase_price} onChange={handleChange} />
+          </div>
+          <div>
+            <Label>Bank Name</Label>
+            <select name="bank_name" className="w-full border rounded px-2 py-2" value={form.bank_name} onChange={handleChange}>
+              <option value="">Select bank</option>
+              {banks.map((bank) => (
+                <option key={bank} value={bank}>{bank}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>FASTag Class</Label>
+            <select name="fastag_class" className="w-full border rounded px-2 py-2" value={form.fastag_class} onChange={handleChange}>
+              <option value="class4">Class 4 (Car/Jeep/Van)</option>
+              <option value="class5">Class 5 (LCV)</option>
+              <option value="class6">Class 6 (Bus/Truck)</option>
+              <option value="class7">Class 7 (Multi-Axle)</option>
+              <option value="class12">Class 12 (Oversize)</option>
+            </select>
+          </div>
+          <div>
+            <Label>Batch Number</Label>
+            <Input name="batch_number" value={form.batch_number} onChange={handleChange} />
+          </div>
+        </div>
+
         <div>
-          <label className="mb-1 text-gray-600 font-medium block">Serial From</label>
-          <input
-            name="serial_from"
-            type="number"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="Start Serial"
-            onChange={handleChange}
-            required
-          />
+          <Label>Remarks (optional)</Label>
+          <Input name="remarks" value={form.remarks} onChange={handleChange} />
         </div>
-        <div>
-          <label className="mb-1 text-gray-600 font-medium block">Serial To</label>
-          <input
-            name="serial_to"
-            type="number"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="End Serial"
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 text-gray-600 font-medium block">Supplier</label>
-          <select
-            name="supplier_id"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={form.supplier_id}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Select Supplier</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 text-gray-600 font-medium block">Purchase Date</label>
-          <input
-            name="purchase_date"
-            type="date"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 text-gray-600 font-medium block">Price</label>
-          <input
-            name="purchase_price"
-            type="number"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="Purchase Price"
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label className="mb-1 text-gray-600 font-medium block">Remarks</label>
-          <input
-            name="remarks"
-            type="text"
-            className="border w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="Remarks (optional)"
-            onChange={handleChange}
-          />
-        </div>
-        <div className="md:col-span-2">
-          <button
-            type="submit"
-            className="bg-blue-600 w-full text-white font-semibold px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition-colors"
-          >
-            Add Fastags
-          </button>
-        </div>
-      </form>
-      {message && <div className="mt-6 text-center text-lg">{message}</div>}
-    </div>
+
+        <Button className="w-full" onClick={handleUpload}>Upload FASTags</Button>
+
+        {message && <p className="text-sm text-muted-foreground mt-2">{message}</p>}
+      </CardContent>
+    </Card>
   );
 }
