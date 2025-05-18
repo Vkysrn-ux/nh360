@@ -7,4 +7,4 @@ export default function FastagInventoryPage() {
       <BulkFastagUploadForm />
     </div>
   );
-}
+} 
