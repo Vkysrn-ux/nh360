@@ -1,10 +1,10 @@
-import FastagBulkAddForm from '@/components/fastagbulkaddform';
+import FastagBulkAddForm from '@/components/BulkFastagUploadForm';
 
 export default function FastagInventoryPage() {
   return (
     <div>
       {/*<h1>Fastag Inventory</h1>*/}
-      <FastagBulkAddForm />
+      <BulkFastagUploadForm />
     </div>
   );
 }
