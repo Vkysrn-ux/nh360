@@ -10,17 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Upload, Download, Search, Edit, Trash2 } from "lucide-react";
+import AddFastagItemForm from "@/components/admin/AddFastagItemForm";
+import BulkFastagUploadForm from "@/components/BulkFastagUploadForm";
 
 export default function AdminFastagsPage() {
   const router = useRouter();
   const [fastags, setFastags] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
 
   const loadFastags = async () => {
     const res = await fetch("/api/fastags/all");
     const data = await res.json();
     setFastags(data);
   };
+  
 
   useEffect(() => {
     loadFastags();
@@ -39,11 +44,49 @@ export default function AdminFastagsPage() {
             <p className="text-muted-foreground">Manage all FASTags in the system.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => router.push("/admin/fastags/add")}> <Plus className="mr-2 h-4 w-4" /> Add FASTag </Button>
-            <Button variant="outline" onClick={() => router.push("/admin/fastags/bulk-upload")}> <Upload className="mr-2 h-4 w-4" /> Bulk Add </Button>
-            <Button variant="outline"> <Download className="mr-2 h-4 w-4" /> Export </Button>
+            <Button onClick={() => {
+              setShowAddForm((prev) => !prev);
+              setShowBulkForm(false);
+            }}>
+              <Plus className="mr-2 h-4 w-4" />
+              {showAddForm ? "Close Add Form" : "Add FASTag"}
+            </Button>
+            <Button variant="outline" onClick={() => {
+              setShowBulkForm((prev) => !prev);
+              setShowAddForm(false);
+            }}>
+              <Upload className="mr-2 h-4 w-4" />
+              {showBulkForm ? "Close Bulk Form" : "Bulk Add"}
+            </Button>
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" /> Export
+            </Button>
           </div>
         </div>
+
+        {showAddForm && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Add New FASTag</CardTitle>
+              <CardDescription>Enter the details of the new FASTag below.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AddFastagItemForm />
+            </CardContent>
+          </Card>
+        )}
+
+        {showBulkForm && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Bulk Upload FASTags</CardTitle>
+              <CardDescription>Enter a range of FASTag serials and batch info.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BulkFastagUploadForm />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

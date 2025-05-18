@@ -9,6 +9,8 @@ export async function GET() {
       FROM suppliers
       ORDER BY created_at DESC
     `);
+    return NextResponse.json(suppliers);  // suppliers must be an array of objects with all fields
+
     return NextResponse.json(rows);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

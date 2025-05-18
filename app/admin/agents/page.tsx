@@ -13,7 +13,6 @@ import { getAdminSession } from "@/lib/actions/auth-actions";
 import type { Agent } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RegisterAgentForm from "@/components/admin/registeragentform";
-<<<<<<< HEAD
 import { Repeat2 } from "lucide-react";
 
 

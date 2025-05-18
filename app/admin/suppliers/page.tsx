@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import RegisterSupplierForm  from "@/components/admin/RegisterSupplierForm";
 
 export default function AdminSuppliersPage() {
   const router = useRouter();
@@ -22,18 +23,30 @@ export default function AdminSuppliersPage() {
   const [editPaymentStatus, setEditPaymentStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
 
   const loadSuppliers = async () => {
-    try {
-      const res = await fetch("/api/suppliers/all");
-      const data = await res.json();
+  try {
+    const res = await fetch("/api/suppliers/all");
+    const data = await res.json();
+    console.log("Fetched supplier:",data)
+    // ✅ Defensive check: ensure data is an array
+    if (Array.isArray(data)) {
       setSuppliers(data);
-    } catch (err) {
-      setError("Failed to fetch supplier data.");
-    } finally {
-      setIsLoading(false);
+    } else {
+      console.error("Unexpected data format from API:", data);
+      setSuppliers([]); // fallback to empty array
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch suppliers", err);
+    setSuppliers([]); // fallback on error
+    setError("Failed to fetch supplier data.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,8 +95,16 @@ export default function AdminSuppliersPage() {
             <h1 className="text-3xl font-bold tracking-tight">Supplier Management</h1>
             <p className="text-muted-foreground">Manage all suppliers in the system.</p>
           </div>
-          <Button onClick={() => router.push("/admin/suppliers/add")}> <Plus className="mr-2 h-4 w-4" /> Add Supplier </Button>
-        </div>
+            <Button className="w-full sm:w-auto" onClick={() => setShowAddForm((prev) => !prev)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {showAddForm ? "Close Form" : "Add New Supplier"}
+            </Button>
+          </div>
+          {showAddForm && (
+            <div className="mt-4">
+              <RegisterSupplierForm />
+            </div>
+          )}
 
         {error && (
           <Alert variant="destructive">
@@ -118,21 +139,29 @@ export default function AdminSuppliersPage() {
                       <TableCell>{supplier.email}</TableCell>
                       <TableCell>{supplier.phone}</TableCell>
                       <TableCell>
-                          <Badge className={supplier.status.toLowerCase() === "active" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}>
-                            {supplier.status}
+                          <Badge className={
+                            supplier.status?.toLowerCase() === "active"
+                              ? "bg-green-50 text-green-700"
+                              : "bg-red-50 text-red-700"
+                          }>
+                            {supplier.status || "Unknown"}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell>
+                          <Badge className={
+                            supplier.payment_status?.toLowerCase() === "paid"
+                              ? "bg-blue-50 text-blue-700"
+                              : supplier.payment_status?.toLowerCase() === "collected"
+                              ? "bg-purple-50 text-purple-700"
+                              : supplier.payment_status
+                              ? "bg-yellow-50 text-yellow-700"
+                              : "bg-muted text-muted-foreground"
+                          }>
+                            {supplier.payment_status || "N/A"}
                           </Badge>
                       </TableCell>
-                      <TableCell>
-                          <Badge className={
-                        supplier.payment_status.toLowerCase() === "paid"
-                          ? "bg-blue-50 text-blue-700"
-                          : supplier.payment_status.toLowerCase() === "collected"
-                          ? "bg-purple-50 text-purple-700"
-                          : "bg-yellow-50 text-yellow-700"
-                      }>
-                        {supplier.payment_status}
-                      </Badge>
-                      </TableCell>
+
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="ghost" size="icon" title="Edit" onClick={() => {

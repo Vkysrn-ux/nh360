@@ -24,18 +24,25 @@ export default function BulkFastagUploadForm() {
   const [banks, setBanks] = useState<string[]>([]);
 
   useEffect(() => {
-    const loadData = async () => {
+  const loadData = async () => {
+    try {
       const [supplierRes, bankRes] = await Promise.all([
         fetch("/api/suppliers"),
         fetch("/api/banks")
       ]);
       const supplierData = await supplierRes.json();
       const bankData = await bankRes.json();
-      setSuppliers(supplierData);
-      setBanks(bankData);
-    };
-    loadData();
-  }, []);
+
+      setSuppliers(Array.isArray(supplierData) ? supplierData : []);
+      setBanks(Array.isArray(bankData) ? bankData : []);
+    } catch (err) {
+      console.error("Error loading dropdown data:", err);
+      setSuppliers([]);
+      setBanks([]);
+    }
+  };
+  loadData();
+}, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -81,9 +88,10 @@ export default function BulkFastagUploadForm() {
             <Label>Supplier</Label>
             <select name="supplier_id" className="w-full border rounded px-2 py-2" value={form.supplier_id} onChange={handleChange}>
               <option value="">Select supplier</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+                  {Array.isArray(suppliers) &&
+                      suppliers.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
             </select>
           </div>
           <div>
@@ -98,9 +106,10 @@ export default function BulkFastagUploadForm() {
             <Label>Bank Name</Label>
             <select name="bank_name" className="w-full border rounded px-2 py-2" value={form.bank_name} onChange={handleChange}>
               <option value="">Select bank</option>
-              {banks.map((bank) => (
-                <option key={bank} value={bank}>{bank}</option>
-              ))}
+              {Array.isArray(banks) &&
+                  banks.map((bank) => (
+                    <option key={bank} value={bank}>{bank}</option>
+                ))}
             </select>
           </div>
           <div>

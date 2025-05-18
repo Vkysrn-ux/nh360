@@ -25,7 +25,7 @@ export default function AddFastagItemPage() {
   useEffect(() => {
     const loadDropdowns = async () => {
       const [supplierRes, bankRes] = await Promise.all([
-        fetch("/api/suppliers"),
+        fetch("/api/suppliers/all"),
         fetch("/api/banks")
       ]);
       const supplierData = await supplierRes.json();
@@ -99,11 +99,19 @@ export default function AddFastagItemPage() {
         </div>
         <div>
           <Label>Supplier</Label>
-          <select name="supplier_id" className="w-full border rounded px-2 py-2" value={form.supplier_id} onChange={handleChange}>
+          <select
+            name="supplier_id"
+            className="w-full border rounded px-2 py-2"
+            value={form.supplier_id}
+            onChange={handleChange}
+          >
             <option value="">Select supplier</option>
-            {suppliers.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+            {Array.isArray(suppliers) &&
+              suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
           </select>
         </div>
         <div>
