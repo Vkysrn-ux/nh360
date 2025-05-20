@@ -1,57 +1,50 @@
-// app/api/fastags/bulk-add/route.ts
-
-import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db"; // Adjust the import as per your DB connection utility
 
 export async function POST(req: NextRequest) {
-  const {
-    serial_from,
-    serial_to,
-    supplier_id,
-    purchase_date,
-    purchase_price,
-    remarks,
-    bank_name,
-    fastag_type,
-    fastag_class,
-    batch_number
-  } = await req.json();
-
-  if (!serial_from || !serial_to || !bank_name || !fastag_type || !fastag_class || !batch_number || !purchase_price) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
-  if (serial_from > serial_to) {
-    return NextResponse.json({ error: "'serial_from' must be less than or equal to 'serial_to'" }, { status: 400 });
-  }
-
-  const values: any[] = [];
-  for (let serial = serial_from; serial <= serial_to; serial++) {
-    values.push([
-      serial.toString(),
-      supplier_id || null,
-      purchase_date,
-      purchase_price,
-      remarks || null,
-      bank_name,
-      fastag_type,
-      fastag_class,
-      batch_number,
-      'in_stock' // default status
-    ]);
-  }
-
   try {
-    await pool.query(
-      `INSERT INTO fastags 
-        (tag_serial, supplier_id, purchase_date, purchase_price, remarks, bank_name, fastag_type, fastag_class, batch_number, status)
-       VALUES ?`,
-      [values]
+    const {
+      supplier_id,
+      fastag_class,
+      bank_name,
+      batch_number,
+      purchase_price,
+      payment_type,
+      purchase_date,
+      serials,
+    } = await req.json();
+
+    if (
+      !supplier_id ||
+      !fastag_class ||
+      !bank_name ||
+      !batch_number ||
+      !purchase_price ||
+      !payment_type ||
+      !purchase_date ||
+      !serials ||
+      !Array.isArray(serials) ||
+      serials.length === 0
+    ) {
+      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    }
+
+    // Optional: Check for duplicate serials in the DB here if you want
+
+    const insertPromises = serials.map((serial: string) =>
+      pool.query(
+        `INSERT INTO fastags
+          (supplier_id, fastag_class, bank_name, batch_number, purchase_price, purchase_type, purchase_date, tag_serial, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')`,
+        [supplier_id, fastag_class, bank_name, batch_number, purchase_price, payment_type, purchase_date, serial]
+      )
     );
 
-    return NextResponse.json({ success: true, count: values.length });
-  } catch (error) {
-    console.error("Bulk insert failed:", error);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    await Promise.all(insertPromises);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("FASTag bulk-add error:", error);
+    return NextResponse.json({ error: error.message || "Unknown error." }, { status: 500 });
   }
 }

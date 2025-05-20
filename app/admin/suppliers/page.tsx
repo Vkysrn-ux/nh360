@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Plus, AlertCircle } from "lucide-react";
+import { Edit, Trash2, Plus } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { getAdminSession } from "@/lib/actions/auth-actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import RegisterSupplierForm  from "@/components/admin/RegisterSupplierForm";
+import RegisterSupplierForm from "@/components/admin/RegisterSupplierForm";
+import AddFastagPurchaseModal from "@/components/admin/AddFastagPurchaseModal";
+import ViewAllFastagsModal from "@/components/admin/ViewAllFastagsModal";
+import SupplierFastagSummaryModal from "@/components/admin/SupplierFastagSummaryModal";
+import Link from "next/link";
 
 export default function AdminSuppliersPage() {
   const router = useRouter();
@@ -24,29 +28,28 @@ export default function AdminSuppliersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddFastagModal, setShowAddFastagModal] = useState(false);
+  const [showAllFastags, setShowAllFastags] = useState(false);
 
+  // Supplier summary modal
+  const [showSupplierSummary, setShowSupplierSummary] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
+  const [supplierSummaryData, setSupplierSummaryData] = useState<any | null>(null);
 
+  // Load suppliers
   const loadSuppliers = async () => {
-  try {
-    const res = await fetch("/api/suppliers/all");
-    const data = await res.json();
-    console.log("Fetched supplier:",data)
-    // ✅ Defensive check: ensure data is an array
-    if (Array.isArray(data)) {
-      setSuppliers(data);
-    } else {
-      console.error("Unexpected data format from API:", data);
-      setSuppliers([]); // fallback to empty array
+    try {
+      const res = await fetch("/api/suppliers/all");
+      const data = await res.json();
+      if (Array.isArray(data)) setSuppliers(data);
+      else setSuppliers([]);
+    } catch (err) {
+      setSuppliers([]);
+      setError("Failed to fetch supplier data.");
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    console.error("Failed to fetch suppliers", err);
-    setSuppliers([]); // fallback on error
-    setError("Failed to fetch supplier data.");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,27 +58,26 @@ export default function AdminSuppliersPage() {
       await loadSuppliers();
     };
     fetchData();
+    // eslint-disable-next-line
   }, [router]);
 
+  // Edit supplier
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editSupplier) return;
-
     const formData = new FormData(e.currentTarget);
     const updated = {
       name: formData.get("name"),
       phone: formData.get("phone"),
       email: formData.get("email"),
       status: editStatus,
-      payment_status: editPaymentStatus
+      payment_status: editPaymentStatus,
     };
-
     const res = await fetch(`/api/suppliers/${editSupplier.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated)
+      body: JSON.stringify(updated),
     });
-
     const result = await res.json();
     if (result.success) {
       setEditSupplier(null);
@@ -87,37 +89,65 @@ export default function AdminSuppliersPage() {
     }
   };
 
+  // Handle supplier row click
+  const handleSupplierRowClick = async (supplier: any, event: any) => {
+    // Don't open summary if clicking an action button or link
+    if ((event.target as HTMLElement).closest("button,a")) return;
+    setSelectedSupplier(supplier);
+    setShowSupplierSummary(true);
+    setSupplierSummaryData(null); // show loading
+    try {
+      const res = await fetch(`/api/suppliers/${supplier.id}/fastag-summary`);
+      const data = await res.json();
+      setSupplierSummaryData(data);
+    } catch {
+      setSupplierSummaryData({ fastags: [] });
+    }
+  };
+
   return (
     <div className="container py-10">
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Supplier Management</h1>
-            <p className="text-muted-foreground">Manage all suppliers in the system.</p>
-          </div>
-            <Button className="w-full sm:w-auto" onClick={() => setShowAddForm((prev) => !prev)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {showAddForm ? "Close Form" : "Add New Supplier"}
-            </Button>
-          </div>
-          {showAddForm && (
-            <div className="mt-4">
-              <RegisterSupplierForm />
-            </div>
-          )}
+        {/* Button Bar */}
+        <div className="flex items-center justify-end gap-4">
+          <Button
+            variant="secondary"
+            className="flex items-center gap-2"
+            onClick={() => setShowAllFastags(true)}
+          >
+            <span role="img" aria-label="View All FASTags">👁️</span> View All FASTags
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => setShowAddForm((prev) => !prev)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {showAddForm ? "Close Form" : "Add New Supplier"}
+          </Button>
+        </div>
 
+        {/* Add Supplier Form */}
+        {showAddForm && (
+          <div className="mt-4">
+            <RegisterSupplierForm />
+          </div>
+        )}
+
+        {/* Error Alert */}
         {error && (
           <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
+        {/* Supplier List */}
         <Card>
           <CardHeader>
             <CardTitle>Supplier List</CardTitle>
-            <CardDescription>View and manage all suppliers with payment status.</CardDescription>
+            <CardDescription>
+              View and manage all suppliers with payment status.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-md border">
@@ -128,51 +158,102 @@ export default function AdminSuppliersPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Total FASTags</TableHead>
+                    <TableHead>Paid FASTags</TableHead>
+                    <TableHead>Unpaid FASTags</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {suppliers.map((supplier) => (
-                    <TableRow key={supplier.id}>
+                    <TableRow
+                      key={supplier.id}
+                      onClick={(event) => handleSupplierRowClick(supplier, event)}
+                      className="cursor-pointer hover:bg-gray-50 transition"
+                    >
                       <TableCell>{supplier.name}</TableCell>
                       <TableCell>{supplier.email}</TableCell>
                       <TableCell>{supplier.phone}</TableCell>
                       <TableCell>
-                          <Badge className={
+                        <Badge
+                          className={
                             supplier.status?.toLowerCase() === "active"
                               ? "bg-green-50 text-green-700"
                               : "bg-red-50 text-red-700"
-                          }>
-                            {supplier.status || "Unknown"}
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge className={
-                            supplier.payment_status?.toLowerCase() === "paid"
-                              ? "bg-blue-50 text-blue-700"
-                              : supplier.payment_status?.toLowerCase() === "collected"
-                              ? "bg-purple-50 text-purple-700"
-                              : supplier.payment_status
-                              ? "bg-yellow-50 text-yellow-700"
-                              : "bg-muted text-muted-foreground"
-                          }>
-                            {supplier.payment_status || "N/A"}
-                          </Badge>
+                          }
+                        >
+                          {supplier.status || "Unknown"}
+                        </Badge>
                       </TableCell>
-
-                      <TableCell className="text-right">
+                      <TableCell>
+                        <Badge variant="outline" className="bg-gray-50 text-gray-800">
+                          {supplier.total_fastag_count || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                          {supplier.paid_fastag_count || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-800">
+                          {supplier.unpaid_fastag_count || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={
+                          supplier.paid_fastag_count > 0
+                            ? "bg-blue-50 text-blue-700"
+                            : supplier.unpaid_fastag_count > 0
+                            ? "bg-yellow-50 text-yellow-800"
+                            : "bg-muted text-muted-foreground"
+                        }>
+                          {supplier.paid_fastag_count > 0
+                            ? "Paid"
+                            : supplier.unpaid_fastag_count > 0
+                            ? "Unpaid"
+                            : "N/A"}
+                        </Badge>
+                      </TableCell>
+                      {/* Actions */}
+                      <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" title="Edit" onClick={() => {
-                            setEditSupplier(supplier);
-                            setEditStatus(supplier.status);
-                            setEditPaymentStatus(supplier.payment_status);
-                          }}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Edit"
+                            onClick={() => {
+                              setEditSupplier(supplier);
+                              setEditStatus(supplier.status);
+                              setEditPaymentStatus(supplier.payment_status);
+                            }}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" title="Delete">
                             <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Add FASTag Purchase"
+                            onClick={() => {
+                              setSelectedSupplier(supplier);
+                              setShowAddFastagModal(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            asChild
+                            title="View Products"
+                          >
+                            <Link href={`/admin/suppliers/${supplier.id}/products`}>
+                              <span role="img" aria-label="View Products">📦</span>
+                            </Link>
                           </Button>
                         </div>
                       </TableCell>
@@ -184,12 +265,16 @@ export default function AdminSuppliersPage() {
           </CardContent>
         </Card>
 
+        {/* Edit Supplier Modal */}
         {editSupplier && (
-          <Dialog open={true} onOpenChange={() => {
-            setEditSupplier(null);
-            setEditStatus("");
-            setEditPaymentStatus("");
-          }}>
+          <Dialog
+            open={true}
+            onOpenChange={() => {
+              setEditSupplier(null);
+              setEditStatus("");
+              setEditPaymentStatus("");
+            }}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Edit Supplier</DialogTitle>
@@ -232,11 +317,34 @@ export default function AdminSuppliersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button type="submit" className="w-full">Update Supplier</Button>
+                <Button type="submit" className="w-full">
+                  Update Supplier
+                </Button>
               </form>
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Add FASTag Purchase Modal */}
+        {showAddFastagModal && selectedSupplier && (
+          <AddFastagPurchaseModal
+            open={showAddFastagModal}
+            onClose={() => setShowAddFastagModal(false)}
+            supplier={selectedSupplier}
+            onSaved={loadSuppliers}
+          />
+        )}
+
+        {/* View All FASTags Modal */}
+        <ViewAllFastagsModal open={showAllFastags} onClose={() => setShowAllFastags(false)} />
+
+        {/* Supplier FASTag Summary Modal */}
+        <SupplierFastagSummaryModal
+          open={showSupplierSummary}
+          onClose={() => setShowSupplierSummary(false)}
+          supplier={selectedSupplier}
+          data={supplierSummaryData}
+        />
       </div>
     </div>
   );

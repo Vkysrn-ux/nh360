@@ -27,7 +27,7 @@ export default function BulkFastagUploadForm() {
   const loadData = async () => {
     try {
       const [supplierRes, bankRes] = await Promise.all([
-        fetch("/api/suppliers"),
+        fetch("/api/suppliers/all"),
         fetch("/api/banks")
       ]);
       const supplierData = await supplierRes.json();
