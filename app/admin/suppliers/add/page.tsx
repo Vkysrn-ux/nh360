@@ -22,6 +22,11 @@ export default function AddSupplierPage() {
   };
 
   const handleSubmit = async () => {
+    if (!form.name.trim()) {
+      setMessage("❌ Please enter the supplier's name.");
+      return;
+    }
+
     const res = await fetch("/api/suppliers/add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -33,7 +38,7 @@ export default function AddSupplierPage() {
       setMessage("✅ Supplier added successfully");
       setForm({ name: "", contact_person: "", email: "", phone: "", address: "" });
     } else {
-      setMessage("❌ " + result.error);
+      setMessage("❌ " + (result.error || "Something went wrong"));
     }
   };
 
@@ -45,8 +50,8 @@ export default function AddSupplierPage() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label>Name</Label>
-          <Input name="name" value={form.name} onChange={handleChange} />
+          <Label>Name <span className="text-red-500">*</span></Label>
+          <Input name="name" value={form.name} onChange={handleChange} required />
         </div>
         <div>
           <Label>Contact Person</Label>
@@ -65,7 +70,7 @@ export default function AddSupplierPage() {
           <Input name="address" value={form.address} onChange={handleChange} />
         </div>
         <Button className="w-full" onClick={handleSubmit}>Add Supplier</Button>
-        {message && <p className="text-sm text-muted-foreground mt-2">{message}</p>}
+        {message && <p className="text-sm mt-2" style={{ color: message.startsWith("✅") ? "green" : "red" }}>{message}</p>}
       </CardContent>
     </Card>
   );

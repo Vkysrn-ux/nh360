@@ -7,8 +7,7 @@ export async function GET(req: NextRequest) {
       SELECT f.*, u.name AS agent_name
       FROM fastags f
       LEFT JOIN users u ON f.assigned_to = u.id AND u.role = 'agent'
-      ORDER BY f.created_at DESC
-    `);
+        `);
     return NextResponse.json(rows);
   } catch (error) {
     console.error("FASTags API error:", error);

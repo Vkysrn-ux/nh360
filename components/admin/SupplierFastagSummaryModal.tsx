@@ -1,25 +1,86 @@
-import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import * as XLSX from "xlsx";
 
 // Utility function to format ₹
-const formatCurrency = (n: string | number) =>
+const formatCurrency = (n: number | string) =>
   "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
+// --- Export functions ---
+function exportGroupedToCSV(grouped: any[], supplierName: string) {
+  if (!grouped || !grouped.length) return;
+  const header = ['Bank', 'Class', 'Total Count'];
+  const rows = grouped.map(row =>
+    [row.bank_name, row.fastag_class, row.total_count]
+  );
+  const csvContent = [
+    header.join(','),
+    ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `FASTag-Summary-${supplierName || 'Supplier'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportGroupedToExcel(grouped: any[], supplierName: string) {
+  if (!grouped || !grouped.length) return;
+  const wsData = [
+    ['Bank', 'Class', 'Total Count'],
+    ...grouped.map(row => [row.bank_name, row.fastag_class, row.total_count])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Summary");
+  XLSX.writeFile(wb, `FASTag-Summary-${supplierName || "Supplier"}.xlsx`);
+}
+
+// ---- FIXED PDF EXPORT ----
+async function exportGroupedToPDF(grouped: any[], supplierName: string) {
+  if (!grouped || !grouped.length) return;
+  const jsPDFModule = await import('jspdf');
+  const autoTable = await import('jspdf-autotable');
+  const jsPDF = jsPDFModule.default;
+
+  // Register autotable on this jsPDF instance (safeguard for some setups)
+  // @ts-ignore
+  if (typeof window !== "undefined" && jsPDF.API && !jsPDF.API.autoTable) {
+    // @ts-ignore
+    autoTable.default(jsPDF);
+  }
+
+  const doc = new jsPDF();
+  doc.text(`FASTag Summary: ${supplierName || "Supplier"}`, 14, 15);
+  // @ts-ignore
+  doc.autoTable({
+    startY: 25,
+    head: [['Bank', 'Class', 'Total Count']],
+    body: grouped.map(row => [row.bank_name, row.fastag_class, row.total_count]),
+  });
+  doc.save(`FASTag-Summary-${supplierName || "Supplier"}.pdf`);
+}
+
+// --- Main component ---
 export default function SupplierFastagSummaryModal({
   open,
   onClose,
   supplier,
-  data // { summary: {...}, fastags: [...] }
+  data
+}: {
+  open: boolean,
+  onClose: () => void,
+  supplier: { name?: string },
+  data: { summary?: any, grouped: any[] }
 }) {
-  // If no data, show loading
-  if (!data || !data.fastags) {
+  if (!data || !data.grouped) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>
               FASTag Summary: {supplier?.name || ""}
@@ -31,47 +92,9 @@ export default function SupplierFastagSummaryModal({
     );
   }
 
-  // Filter state
-  const [bankFilter, setBankFilter] = useState("all");
-  const [classFilter, setClassFilter] = useState("all");
-  const [batchFilter, setBatchFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-
-  // Unique options for filtering
-  const classOptions = useMemo(
-    () => Array.from(new Set(data.fastags.map(f => f.fastag_class))).filter(Boolean),
-    [data]
-  );
-  const bankOptions = useMemo(
-    () => Array.from(new Set(data.fastags.map(f => f.bank_name))).filter(Boolean),
-    [data]
-  );
-  const batchOptions = useMemo(
-    () => Array.from(new Set(data.fastags.map(f => f.batch_number))).filter(Boolean),
-    [data]
-  );
-  const statusOptions = useMemo(
-    () => Array.from(new Set(data.fastags.map(f => f.status))).filter(Boolean),
-    [data]
-  );
-
-  // Filtered fastags
-  const filtered = useMemo(() => {
-    return data.fastags.filter(tag =>
-      (bankFilter === "all" || tag.bank_name === bankFilter) &&
-      (classFilter === "all" || tag.fastag_class === classFilter) &&
-      (batchFilter === "all" || tag.batch_number === batchFilter) &&
-      (statusFilter === "all" || tag.status === statusFilter) &&
-      (search.trim() === "" || tag.tag_serial?.toLowerCase().includes(search.trim().toLowerCase()))
-    );
-  }, [data, bankFilter, classFilter, batchFilter, statusFilter, search]);
-
-  // Quick stats from summary object (fix here)
+  // Quick stats from summary object
   const summary = data.summary || {};
   const totalCount = summary.total_fastags ?? 0;
-  const paidCount = summary.paid ?? 0;
-  const unpaidCount = summary.unpaid ?? 0;
   const inStockCount = summary.available_with_admin ?? 0;
   const assignedCount = summary.assigned_to_agent ?? 0;
   const soldCount = summary.sold_total ?? 0;
@@ -79,7 +102,7 @@ export default function SupplierFastagSummaryModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>
             FASTag Inventory Summary: <span className="font-semibold">{supplier?.name || ""}</span>
@@ -91,14 +114,6 @@ export default function SupplierFastagSummaryModal({
             <div className="rounded bg-blue-50 text-blue-700 px-4 py-2 min-w-[130px] text-center">
               <div className="font-bold text-2xl">{totalCount}</div>
               <div className="text-xs">Total FASTags</div>
-            </div>
-            <div className="rounded bg-green-50 text-green-700 px-4 py-2 min-w-[130px] text-center">
-              <div className="font-bold text-2xl">{paidCount}</div>
-              <div className="text-xs">Paid</div>
-            </div>
-            <div className="rounded bg-yellow-50 text-yellow-700 px-4 py-2 min-w-[130px] text-center">
-              <div className="font-bold text-2xl">{unpaidCount}</div>
-              <div className="text-xs">Unpaid</div>
             </div>
             <div className="rounded bg-gray-50 text-gray-800 px-4 py-2 min-w-[130px] text-center">
               <div className="font-bold text-2xl">{inStockCount}</div>
@@ -113,115 +128,57 @@ export default function SupplierFastagSummaryModal({
               <div className="text-xs">Sold</div>
             </div>
             <div className="rounded bg-green-50 text-green-700 px-4 py-2 min-w-[130px] text-center">
-              <div className="font-bold text-2xl">₹{profit}</div>
+              <div className="font-bold text-2xl">{formatCurrency(profit)}</div>
               <div className="text-xs">Profit</div>
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Input
-              placeholder="Search Serial..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-52"
-            />
-            <Select value={bankFilter} onValueChange={setBankFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Banks" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Banks</SelectItem>
-                {bankOptions.map(b => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {classOptions.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={batchFilter} onValueChange={setBatchFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Batches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Batches</SelectItem>
-                {batchOptions.map(b => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {statusOptions.map(s => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Export Buttons */}
+          <div className="flex gap-3 justify-end mb-2">
+            <button
+              className="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+              onClick={() => exportGroupedToCSV(data.grouped, supplier?.name || "")}
+            >
+              Export CSV
+            </button>
+            <button
+              className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+              onClick={() => exportGroupedToExcel(data.grouped, supplier?.name || "")}
+            >
+              Export Excel
+            </button>
+{/*            <button
+              className="px-4 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition"
+              onClick={async () => await exportGroupedToPDF(data.grouped, supplier?.name || "")}
+            >
+              Export PDF
+            </button>*/}
           </div>
 
-          {/* Table */}
+          {/* Grouped Summary Table */}
+          <h2 className="font-semibold text-lg mb-2 mt-4">FASTag Count by Bank & Class</h2>
           <div className="overflow-x-auto max-h-[60vh] rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Serial</TableHead>
                   <TableHead>Bank</TableHead>
                   <TableHead>Class</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Purchase Price</TableHead>
-                  <TableHead>Purchase Date</TableHead>
-                  <TableHead>Agent/Shop</TableHead>
+                  <TableHead>Total Count</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {data.grouped.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
-                      No FASTags found.
+                    <TableCell colSpan={3} className="text-center">
+                      No data available.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map(tag => (
-                    <TableRow key={tag.id}>
-                      <TableCell>{tag.tag_serial}</TableCell>
-                      <TableCell>{tag.bank_name}</TableCell>
-                      <TableCell>{tag.fastag_class}</TableCell>
-                      <TableCell>{tag.batch_number}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={
-                          tag.status === "sold"
-                            ? "bg-gray-200 text-gray-800"
-                            : tag.status === "assigned"
-                            ? "bg-yellow-50 text-yellow-700"
-                            : "bg-green-50 text-green-700"
-                        }>
-                          {tag.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {formatCurrency(tag.purchase_price)}
-                      </TableCell>
-                      <TableCell>
-                        {tag.purchase_date ? tag.purchase_date.slice(0, 10) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {/* Show assigned_to_agent_name if exists, else "-" */}
-                        {tag.assigned_to_agent_name || "-"}
-                      </TableCell>
+                  data.grouped.map((item, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{item.bank_name}</TableCell>
+                      <TableCell>{item.fastag_class}</TableCell>
+                      <TableCell>{item.total_count}</TableCell>
                     </TableRow>
                   ))
                 )}

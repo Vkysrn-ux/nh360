@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-export async function PUT(req: NextRequest, context: { params: { id: string } }) {
-  const { id } = context.params;
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const id = params.id;
   const {
     bank_name,
     fastag_class,

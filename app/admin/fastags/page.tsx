@@ -15,6 +15,9 @@ import BulkFastagUploadForm from "@/components/BulkFastagUploadForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import BulkTransferModal from "@/components/admin/BulkTransferModal";
+
+
 
 
 export default function AdminFastagsPage() {
@@ -30,7 +33,32 @@ export default function AdminFastagsPage() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [agents, setAgents] = useState<any[]>([]);
   const [agentNameFilter, setAgentNameFilter] = useState("all");
+  const [showBulkTransfer, setShowBulkTransfer] = useState(false);
 
+
+
+const [available, setAvailable] = useState([]); // [{ bank_name, fastag_class, available }]
+useEffect(() => {
+  fetch('/api/fastags/available-summary')
+    .then(res => res.json())
+    .then(setAvailable);
+}, []);
+
+function getRemaining(bank, cls, rows, rowIndex) {
+  // Find base available
+  const found = available.find(
+    (a) => a.bank_name === bank && a.fastag_class === cls
+  );
+  const base = found?.available ?? 0;
+  // Subtract what's already assigned in previous rows in modal
+  let used = 0;
+  rows.forEach((row, idx) => {
+    if (idx !== rowIndex && row.bank_name === bank && row.fastag_class === cls) {
+      used += Number(row.quantity || 0);
+    }
+  });
+  return base - used;
+}
 
   const loadFastags = async () => {
   const res = await fetch("/api/fastags/all");
@@ -110,6 +138,10 @@ export default function AdminFastagsPage() {
             }}>
               <Upload className="mr-2 h-4 w-4" />
               {showBulkForm ? "Close Bulk Form" : "Bulk Add"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowBulkTransfer(true)}>
+              <Download className="mr-2 h-4 w-4" />
+              Bulk Transfer
             </Button>
             <Button variant="outline">
               <Download className="mr-2 h-4 w-4" /> Export
@@ -389,6 +421,14 @@ export default function AdminFastagsPage() {
   </div>
 )}
 
+<BulkTransferModal
+  open={showBulkTransfer}
+  onClose={() => setShowBulkTransfer(false)}
+  banks={uniqueBanks}
+  classes={uniqueTypes}
+  agents={agents}
+  onSuccess={loadFastags}
+/>
 
 
 

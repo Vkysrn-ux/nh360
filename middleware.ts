@@ -2,30 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
   const session = req.cookies.get('user-session')?.value
-
   const url = req.nextUrl.clone()
 
-  // List of protected paths
-  const protectedRoutes = [
-    '/admin/dashboard',
-    '/agent/dashboard',
-    '/employee/dashboard',
-    '/user/dashboard'
-  ]
+  // Match all protected role paths
+  const protectedPrefixes = ['/admin', '/agent', '/employee', '/user']
 
-  if (protectedRoutes.includes(url.pathname)) {
+  // Check if path starts with a protected prefix
+  const isProtected = protectedPrefixes.some(prefix => url.pathname.startsWith(prefix))
+
+  if (isProtected) {
     if (!session) {
-      url.pathname = '/login' // Redirect to login if no session
+      url.pathname = '/login'
       return NextResponse.redirect(url)
     }
 
-    // Optional: Parse session & validate role-path match
     try {
-      const data = JSON.parse(session)
-      if (url.pathname.startsWith(`/${data.userType}`)) {
+      const data = JSON.parse(session) // expects: { userType: 'admin' | 'agent' | ... }
+
+      // Allow only correct role to access their routes
+      const allowedPrefix = `/${data.userType}`
+      if (url.pathname.startsWith(allowedPrefix)) {
         return NextResponse.next()
       } else {
-        url.pathname = `/${data.userType}/dashboard` // Redirect to correct role
+        // Redirect to correct dashboard if wrong role
+        url.pathname = `${allowedPrefix}/dashboard`
         return NextResponse.redirect(url)
       }
     } catch {
@@ -37,12 +37,12 @@ export function middleware(req: NextRequest) {
   return NextResponse.next()
 }
 
+// Protect *all* pages under role paths, not just dashboard
 export const config = {
   matcher: [
-    '/admin/dashboard',
-    '/agent/dashboard',
-    '/employee/dashboard',
-    '/user/dashboard'
+    '/admin/:path*',
+    '/agent/:path*',
+    '/employee/:path*',
+    '/user/:path*',
   ]
 }
-  

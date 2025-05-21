@@ -30,6 +30,10 @@ export default function AdminSuppliersPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddFastagModal, setShowAddFastagModal] = useState(false);
   const [showAllFastags, setShowAllFastags] = useState(false);
+  const [deleteSupplier, setDeleteSupplier] = useState<any | null>(null);
+const [deleteWithData, setDeleteWithData] = useState(false);
+const [deleteError, setDeleteError] = useState<string | null>(null);
+
 
   // Supplier summary modal
   const [showSupplierSummary, setShowSupplierSummary] = useState(false);
@@ -231,9 +235,18 @@ export default function AdminSuppliersPage() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Delete">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Delete"
+                                onClick={() => {
+                                  setDeleteSupplier(supplier);
+                                  setDeleteWithData(false);
+                                  setDeleteError(null);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -324,6 +337,80 @@ export default function AdminSuppliersPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {deleteSupplier && (
+  <Dialog open={true} onOpenChange={() => setDeleteSupplier(null)}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>
+          Remove Supplier: <span className="font-semibold">{deleteSupplier.name}</span>
+        </DialogTitle>
+      </DialogHeader>
+      <div className="space-y-3">
+        <p>
+          Are you sure you want to remove this supplier?
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="deleteWithData"
+            checked={deleteWithData}
+            onChange={e => setDeleteWithData(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <label htmlFor="deleteWithData" className="text-sm">
+            Also delete all FASTags and data related to this supplier
+          </label>
+        </div>
+        {deleteWithData ? (
+          <div className="text-red-600 text-xs">
+            <strong>Warning:</strong> This will permanently delete the supplier and all their FASTag records. This action cannot be undone!
+          </div>
+        ) : (
+          <div className="text-yellow-600 text-xs">
+            Note: You cannot delete a supplier with related data unless you select the above option.
+          </div>
+        )}
+        {deleteError && (
+          <div className="text-red-600 text-xs">{deleteError}</div>
+        )}
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="outline" onClick={() => setDeleteSupplier(null)}>
+          Cancel
+        </Button>
+        <Button
+            variant="destructive"
+            onClick={async () => {
+              setDeleteError(null);
+              // Call your API with the option to also delete data
+              const res = await fetch(`/api/suppliers/${deleteSupplier.id}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ withData: deleteWithData }),
+              });
+              let result = {};
+              try {
+                result = await res.json();
+              } catch {
+                result = { error: "No response from server." };
+              }
+              if (result.success) {
+                setDeleteSupplier(null);
+                setDeleteWithData(false);
+                await loadSuppliers();
+              } else {
+                setDeleteError(result.error || "Failed to delete supplier");
+              }
+            }}
+          >
+            {deleteWithData ? "Delete Supplier & Data" : "Delete Supplier"}
+          </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+)}
+
 
         {/* Add FASTag Purchase Modal */}
         {showAddFastagModal && selectedSupplier && (

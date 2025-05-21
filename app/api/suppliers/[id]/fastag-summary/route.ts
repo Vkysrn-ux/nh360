@@ -1,12 +1,11 @@
-// app/api/suppliers/[id]/fastag-summary/route.ts
 import { pool } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const { id: supplierId } = await params;
+  const { id: supplierId } = params; // (you don't need "await" here)
 
   try {
-    // Summary
+    // Overall Summary
     const [summary] = await pool.query(`
       SELECT
         COUNT(*) AS total_fastags,
@@ -17,29 +16,25 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       WHERE supplier_id = ?
     `, [supplierId]);
 
-    // List
-    const [list] = await pool.query(`
+    // Grouped by bank and class
+    const [grouped] = await pool.query(`
       SELECT
-        f.id,        
-        f.tag_serial,
-        f.bank_name,
-        f.fastag_class,
-        f.batch_number,
-        f.purchase_date,
-        f.status,
-        f.assigned_to_agent_id,
-        agent.name AS assigned_to_agent_name,
-        f.sold_by_user_id,
-        seller.name AS sold_by_name,
-        f.sold_price
-      FROM fastags f
-      LEFT JOIN users agent ON f.assigned_to_agent_id = agent.id
-      LEFT JOIN users seller ON f.sold_by_user_id = seller.id
-      WHERE f.supplier_id = ?
-      ORDER BY f.purchase_date DESC
+        bank_name,
+        fastag_class,
+        COUNT(*) AS total_count
+      FROM fastags
+      WHERE supplier_id = ?
+      GROUP BY bank_name, fastag_class
+      ORDER BY bank_name, fastag_class
     `, [supplierId]);
 
-    return new Response(JSON.stringify({ summary: summary[0], fastags: list }), { status: 200 });
+    return new Response(
+      JSON.stringify({
+        summary: summary[0],
+        grouped, // this is your per-bank/class count!
+      }),
+      { status: 200 }
+    );
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
