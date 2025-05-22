@@ -7,14 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Download, Edit, Eye, Plus, Search, Trash2, Upload, ArrowRightArrowLeft } from "lucide-react";
+import { AlertCircle, Download, Edit, Eye, Plus, Search, Trash2, Upload, Repeat2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getAdminSession } from "@/lib/actions/auth-actions";
 import type { Agent } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RegisterAgentForm from "@/components/admin/registeragentform";
-import { Repeat2 } from "lucide-react";
-
 
 export default function AdminAgentsPage() {
   const router = useRouter();
@@ -24,6 +22,11 @@ export default function AdminAgentsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Modal/dashboard state
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [agentDetails, setAgentDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     const checkSessionAndLoadAgents = async () => {
@@ -48,18 +51,30 @@ export default function AdminAgentsPage() {
     checkSessionAndLoadAgents();
   }, [router]);
 
+  // Filtered list logic
   const filteredAgents = agents.filter((agent) => {
     const matchesSearch =
       agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (agent.email ? agent.email.toLowerCase().includes(searchQuery.toLowerCase()) : false) ||
       agent.phone.includes(searchQuery) ||
-      agent.address.toLowerCase().includes(searchQuery.toLowerCase());
+      agent.pincode.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus =
       filterStatus === "all" || (agent.status || "Active").toLowerCase() === filterStatus.toLowerCase();
 
     return matchesSearch && matchesStatus;
   });
+
+  // Handle row click: load agent details for modal/dashboard
+  const handleRowClick = (agent: Agent) => {
+    setSelectedAgent(agent);
+    setLoadingDetails(true);
+    setAgentDetails(null);
+    fetch(`/api/agents/${agent.id}/details`)
+      .then(res => res.json())
+      .then(data => setAgentDetails(data))
+      .finally(() => setLoadingDetails(false));
+  };
 
   if (isLoading) {
     return (
@@ -92,12 +107,12 @@ export default function AdminAgentsPage() {
               <Repeat2 className="mr-2 h-4 w-4" />
               Transfer FASTags
             </Button>
-            <Button variant="outline" className="w-full sm:w-auto">
+{/*            <Button variant="outline" className="w-full sm:w-auto">
               <Upload className="mr-2 h-4 w-4" /> Import
             </Button>
             <Button variant="outline" className="w-full sm:w-auto">
               <Download className="mr-2 h-4 w-4" /> Export
-            </Button>
+            </Button>*/}
           </div>
         </div>
 
@@ -168,43 +183,45 @@ export default function AdminAgentsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Commission Rate</TableHead>
+                      <TableHead>Pincode</TableHead>
                       <TableHead className="text-center">Status</TableHead>
+                      <TableHead>Total FASTags</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAgents.map((agent) => (
-                      <TableRow key={agent.id}>
+                      <TableRow
+                        key={agent.id}
+                        className="cursor-pointer hover:bg-blue-50"
+                        onClick={() => handleRowClick(agent)}
+                      >
                         <TableCell className="font-medium">{agent.name}</TableCell>
-                        <TableCell>{agent.email}</TableCell>
                         <TableCell>{agent.phone}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{agent.address}</TableCell>
-                        <TableCell>{agent.commission_rate}%</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{agent.pincode}</TableCell>
                         <TableCell className="text-center">
                           <Badge
-                            variant={(agent.status || "Active") === "Active" ? "outline" : "secondary"}
                             className={
-                              (agent.status || "Active") === "Active"
-                                ? "bg-green-50 text-green-700 hover:bg-green-50"
-                                : "bg-red-50 text-red-700 hover:bg-red-50"
+                              (agent.status || "Active").toLowerCase() === "active"
+                                ? "bg-green-100 text-green-800 border border-green-200"
+                                : "bg-red-100 text-red-800 border border-red-200"
                             }
                           >
-                            {agent.status || "Active"}
+                            {(agent.status || "Active").charAt(0).toUpperCase() +
+                              (agent.status || "Active").slice(1).toLowerCase()}
                           </Badge>
                         </TableCell>
+                        <TableCell>{agent.fastags_available}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/agents/${agent.id}`)} title="View Details">
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); router.push(`/admin/agents/${agent.id}`); }} title="View Details">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => alert("Edit Agent (not implemented)")}>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); alert("Edit Agent (not implemented)"); }}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => alert("Delete Agent (not implemented)")}>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); alert("Delete Agent (not implemented)"); }}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -217,6 +234,80 @@ export default function AdminAgentsPage() {
             )}
           </CardContent>
         </Card>
+        {/* Agent Modal/Dashboard */}
+        {selectedAgent && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 max-w-3xl w-full relative">
+              <button
+                onClick={() => {
+                  setSelectedAgent(null);
+                  setAgentDetails(null);
+                }}
+                className="absolute top-3 right-4 text-2xl"
+              >
+                &times;
+              </button>
+              <h2 className="text-2xl font-bold mb-4">Agent: {selectedAgent.name}</h2>
+              {loadingDetails ? (
+                <div>Loading details...</div>
+              ) : agentDetails ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <b>Total FASTags handled:</b> {agentDetails.total_fastags}
+                    </div>
+                    <div>
+                      <b>Currently Available:</b> {agentDetails.available_fastags}
+                    </div>
+                    <div>
+                      <b>Sold FASTags:</b> {agentDetails.sold_fastags}
+                    </div>
+                    <div>
+                      <b>Reassigned to Others:</b> {agentDetails.reassigned_fastags}
+                    </div>
+                  </div>
+                  <div className="overflow-auto max-h-96">
+                    <h3 className="font-semibold mb-2">FASTag Serial Details</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Serial Number</TableHead>
+                          <TableHead>Date Assigned</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Current Holder</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.isArray(agentDetails.fastag_serials) && agentDetails.fastag_serials.length > 0 ? (
+                          agentDetails.fastag_serials.map((tag: any) => (
+                            <TableRow key={tag.tag_serial}>
+                              <TableCell>{tag.tag_serial}</TableCell>
+                              <TableCell>
+                                {tag.assigned_date
+                                  ? new Date(tag.assigned_date).toLocaleString()
+                                  : '-'}
+                              </TableCell>
+                              <TableCell>{tag.status}</TableCell>
+                              <TableCell>{tag.current_holder || '-'}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground">
+                              No FASTags found for this agent.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              ) : (
+                <div>No details found for agent.</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

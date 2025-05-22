@@ -1,31 +1,28 @@
-import { NextRequest, NextResponse } from "next/server"
-import { pool } from "@/lib/db"
-import bcrypt from "bcryptjs"
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { name, email, phone, address, password, commission_rate } = body
+    const body = await req.json();
+    const { name, phone, pincode } = body;
 
-    if (!name || !email || !phone || !address) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    // Check for required fields
+    if (!name || !phone || !pincode) {
+      return NextResponse.json({ error: "Name, Phone, and Pincode are required." }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(password || "123456", 10)
-
+    // Insert new agent as user with role 'agent'
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, phone, address, password, role, commission_rate)
-       VALUES (?, ?, ?, ?, ?, 'agent', ?)`,
-      [name, email, phone, address, hashedPassword, commission_rate || 10]
-    )
+      `INSERT INTO users (name, phone, pincode, role) VALUES (?, ?, ?, 'agent')`,
+      [name, phone, pincode]
+    );
 
-    return NextResponse.json({ success: true, userId: (result as any).insertId })
+    return NextResponse.json({ success: true, userId: (result as any).insertId });
   } catch (error: any) {
     if (error?.code === "ER_DUP_ENTRY") {
-      return NextResponse.json({ error: "Email already exists" }, { status: 409 })
+      return NextResponse.json({ error: "Phone or Pincode already exists" }, { status: 409 });
     }
-
-    console.error("Registration failed:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error("Registration failed:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

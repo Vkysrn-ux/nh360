@@ -1,14 +1,21 @@
-// app/api/agents/route.ts
-import { pool } from "@/lib/db"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const [rows] = await pool.query(
-      "SELECT id, name, email, phone, address, commission_rate, role FROM users WHERE role = 'agent'"
-    )
-    return NextResponse.json(rows)
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const [agents] = await pool.query(`
+      SELECT 
+        u.id, u.name, u.phone, u.pincode, u.status,
+        (
+          SELECT COUNT(*) 
+          FROM fastags f 
+          WHERE f.assigned_to = u.id AND f.status = 'assigned'
+        ) AS fastags_available
+      FROM users u
+      WHERE u.role = 'agent'
+    `);
+    return NextResponse.json(agents);
+  } catch (err) {
+    return NextResponse.json({ error: "Failed to fetch agents" }, { status: 500 });
   }
 }
