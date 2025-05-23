@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
 export async function GET(req: NextRequest, context: { params: { id: string } }) {
-  const agentId = context.params.id;
+  const { params } = context;      // ✅ No await here!
+  const agentId = params.id;
 
   try {
     // 1. Total FASTags currently assigned to this agent
