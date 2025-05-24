@@ -276,6 +276,7 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
             fastagClass: row.fastagClass,
             prefix: row.prefix,
             from: transferFrom,
+            agentId: transferTo, 
             to: transferTo,
             serials,
           };
@@ -287,6 +288,8 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
         setLoading(false);
         return;
       }
+
+      console.log("Sending assignments", assignments);
 
       const res = await fetch("/api/fastags/bulk-transfer", {
         method: "POST",

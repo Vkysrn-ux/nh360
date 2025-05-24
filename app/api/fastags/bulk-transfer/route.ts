@@ -1,4 +1,3 @@
-// app/api/fastags/bulk-transfer/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
@@ -6,11 +5,15 @@ export async function POST(req: NextRequest) {
   const transfers = await req.json();
 
   try {
+    let allAssigned = [];
     for (const row of transfers) {
-      // Validate agentId and serials
-      if (!row.agentId || isNaN(Number(row.agentId))) {
+      // Allow agentId as number or 'admin'
+      if (
+        (!row.agentId && row.agentId !== 0 && row.agentId !== 'admin') ||
+        (row.agentId !== 'admin' && isNaN(Number(row.agentId)))
+      ) {
         return NextResponse.json(
-          { error: "Agent is required and must be a valid number." },
+          { error: "Agent is required and must be a valid number or 'admin'." },
           { status: 400 }
         );
       }
@@ -21,14 +24,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Update only the selected serial numbers for assignment
+      // If transferring to admin, treat assigned_to as NULL and status as 'in_stock'
+      let assignedToValue = row.agentId === 'admin' ? null : Number(row.agentId);
+      let statusValue = row.agentId === 'admin' ? 'in_stock' : 'assigned';
+
       await pool.query(
-        `UPDATE fastags SET assigned_to=?, status='assigned', assigned_at=NOW()
+        `UPDATE fastags SET assigned_to=?, status=?, assigned_at=NOW()
          WHERE tag_serial IN (${row.serials.map(() => '?').join(",")})`,
-        [Number(row.agentId), ...row.serials]
+        [assignedToValue, statusValue, ...row.serials]
       );
+
+      // Fetch the updated tag_serial and assigned_at for these serials
+      const [updatedTags] = await pool.query(
+        `SELECT tag_serial, assigned_at FROM fastags WHERE tag_serial IN (${row.serials.map(() => '?').join(",")})`,
+        [...row.serials]
+      );
+      allAssigned = allAssigned.concat(updatedTags as any[]);
     }
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, assigned: allAssigned });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
