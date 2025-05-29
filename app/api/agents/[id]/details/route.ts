@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+console.log("AgentDetailModal RENDERED!", new Date());
 
-export async function GET(req: NextRequest, context: { params: { id: string } }) {
-  const { params } = context;      // ✅ No await here!
+export async function GET(
+  
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
+  // ✅ Await the params!
+  const params = await context.params;
   const agentId = params.id;
 
   try {

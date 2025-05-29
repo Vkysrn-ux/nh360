@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Download, Edit, Eye, Plus, Search, Trash2, Upload, Repeat2 } from "lucide-react";
+import { AlertCircle, Repeat2, Eye, Edit, Trash2, Plus, Search } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getAdminSession } from "@/lib/actions/auth-actions";
 import type { Agent } from "@/lib/types";
@@ -39,9 +39,14 @@ export default function AdminAgentsPage() {
       try {
         const res = await fetch("/api/agents");
         const agentData = await res.json();
-        setAgents(agentData);
+        if (Array.isArray(agentData)) {
+          setAgents(agentData);
+        } else {
+          setAgents([]);
+          setError(agentData?.error || "Failed to load agent data.");
+        }
       } catch (error) {
-        console.error("Failed to fetch agents:", error);
+        setAgents([]);
         setError("Failed to load agent data. Please try again.");
       } finally {
         setIsLoading(false);
@@ -65,16 +70,91 @@ export default function AdminAgentsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // Compute agent rows (prevents hydration errors)
+  const agentRows =
+    filteredAgents.length === 0
+      ? [
+          <TableRow key="empty">
+            <TableCell colSpan={7} className="text-center text-muted-foreground">
+              No agents found.
+            </TableCell>
+          </TableRow>,
+        ]
+      : filteredAgents.map((agent) => (
+          <TableRow
+            key={agent.id}
+            className="cursor-pointer hover:bg-blue-50"
+            onClick={() => handleRowClick(agent)}
+          >
+            <TableCell className="font-medium">{agent.name}</TableCell>
+            <TableCell>{agent.phone}</TableCell>
+            <TableCell className="max-w-[200px] truncate">{agent.pincode}</TableCell>
+            <TableCell>
+              {agent.parent_name
+                ? `${agent.parent_name} (${agent.parent_role})`
+                : <span className="text-muted-foreground">—</span>}
+            </TableCell>
+            <TableCell className="text-center">
+              <Badge
+                className={
+                  (agent.status || "Active").toLowerCase() === "active"
+                    ? "bg-green-100 text-green-800 border border-green-200"
+                    : "bg-red-100 text-red-800 border border-red-200"
+                }
+              >
+                {(agent.status || "Active").charAt(0).toUpperCase() +
+                  (agent.status || "Active").slice(1).toLowerCase()}
+              </Badge>
+            </TableCell>
+            <TableCell>{agent.fastags_available}</TableCell>
+            <TableCell className="text-right">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/admin/agents/${agent.id}`);
+                  }}
+                  title="View Details"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    alert("Edit Agent (not implemented)");
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    alert("Delete Agent (not implemented)");
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ));
+
   // Handle row click: load agent details for modal/dashboard
-  const handleRowClick = (agent: Agent) => {
+  function handleRowClick(agent: Agent) {
     setSelectedAgent(agent);
     setLoadingDetails(true);
     setAgentDetails(null);
     fetch(`/api/agents/${agent.id}/details`)
-      .then(res => res.json())
-      .then(data => setAgentDetails(data))
+      .then((res) => res.json())
+      .then((data) => setAgentDetails(data))
       .finally(() => setLoadingDetails(false));
-  };
+  }
 
   if (isLoading) {
     return (
@@ -107,12 +187,6 @@ export default function AdminAgentsPage() {
               <Repeat2 className="mr-2 h-4 w-4" />
               Transfer FASTags
             </Button>
-{/*            <Button variant="outline" className="w-full sm:w-auto">
-              <Upload className="mr-2 h-4 w-4" /> Import
-            </Button>
-            <Button variant="outline" className="w-full sm:w-auto">
-              <Download className="mr-2 h-4 w-4" /> Export
-            </Button>*/}
           </div>
         </div>
 
@@ -165,73 +239,24 @@ export default function AdminAgentsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {filteredAgents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-center">
-                <p className="text-muted-foreground">No agents found.</p>
-                {(searchQuery || filterStatus !== "all") && (
-                  <Button variant="link" onClick={() => {
-                    setSearchQuery("");
-                    setFilterStatus("all");
-                  }}>
-                    Clear filters
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Pincode</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead>Total FASTags</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAgents.map((agent) => (
-                      <TableRow
-                        key={agent.id}
-                        className="cursor-pointer hover:bg-blue-50"
-                        onClick={() => handleRowClick(agent)}
-                      >
-                        <TableCell className="font-medium">{agent.name}</TableCell>
-                        <TableCell>{agent.phone}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{agent.pincode}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            className={
-                              (agent.status || "Active").toLowerCase() === "active"
-                                ? "bg-green-100 text-green-800 border border-green-200"
-                                : "bg-red-100 text-red-800 border border-red-200"
-                            }
-                          >
-                            {(agent.status || "Active").charAt(0).toUpperCase() +
-                              (agent.status || "Active").slice(1).toLowerCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{agent.fastags_available}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); router.push(`/admin/agents/${agent.id}`); }} title="View Details">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); alert("Edit Agent (not implemented)"); }}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); alert("Delete Agent (not implemented)"); }}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Pincode</TableHead>
+                    <TableHead>Parent Agent</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead>Total FASTags</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {agentRows}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
         {/* Agent Modal/Dashboard */}
@@ -248,6 +273,15 @@ export default function AdminAgentsPage() {
                 &times;
               </button>
               <h2 className="text-2xl font-bold mb-4">Agent: {selectedAgent.name}</h2>
+              <div className="mb-2">
+                <b>Role:</b> {selectedAgent.role}
+              </div>
+              <div className="mb-2">
+                <b>Parent Agent:</b>{" "}
+                {selectedAgent.parent_name
+                  ? `${selectedAgent.parent_name} (${selectedAgent.parent_role})`
+                  : <span className="text-muted-foreground">None</span>}
+              </div>
               {loadingDetails ? (
                 <div>Loading details...</div>
               ) : agentDetails ? (

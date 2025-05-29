@@ -4,18 +4,24 @@ import { pool } from "@/lib/db";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, phone, pincode } = body;
+    const { name, phone, pincode, role, parent_user_id } = body;
 
-    // Check for required fields
-    if (!name || !phone || !pincode) {
-      return NextResponse.json({ error: "Name, Phone, and Pincode are required." }, { status: 400 });
+    // Validate required fields
+    if (!name || !phone || !pincode || !role) {
+      return NextResponse.json(
+        { error: "Name, Phone, Pincode, and Role are required." },
+        { status: 400 }
+      );
     }
 
-    // Insert new agent as user with role 'agent'
-    const [result] = await pool.query(
-      `INSERT INTO users (name, phone, pincode, role) VALUES (?, ?, ?, 'agent')`,
-      [name, phone, pincode]
-    );
+    // Always save parent_user_id (null if not provided)
+    const query = `
+      INSERT INTO users (name, phone, pincode, role, parent_user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    const params = [name, phone, pincode, role, parent_user_id ?? null];
+
+    const [result] = await pool.query(query, params);
 
     return NextResponse.json({ success: true, userId: (result as any).insertId });
   } catch (error: any) {
