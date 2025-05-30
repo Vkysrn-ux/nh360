@@ -1,32 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-console.log("AgentDetailModal RENDERED!", new Date());
 
 export async function GET(
-  
   req: NextRequest,
   context: { params: { id: string } }
 ) {
-  // ✅ Await the params!
-  const params = await context.params;
-  const agentId = params.id;
+  const agentId = context.params.id;
 
   try {
-    // 1. Total FASTags currently assigned to this agent
+    // 1. Total FASTags assigned to this agent
     const [totalRows] = await pool.query(
       "SELECT COUNT(*) as cnt FROM fastags WHERE assigned_to = ?", [agentId]
     );
-    // 2. Available FASTags (status = 'assigned')
+    // 2. FASTags with status = 'assigned'
     const [availRows] = await pool.query(
       "SELECT COUNT(*) as cnt FROM fastags WHERE assigned_to = ? AND status = 'assigned'", [agentId]
     );
-    // 3. Sold FASTags
+    // 3. FASTags with status = 'sold'
     const [soldRows] = await pool.query(
       "SELECT COUNT(*) as cnt FROM fastags WHERE assigned_to = ? AND status = 'sold'", [agentId]
     );
-    // 4. Reassigned FASTags (set to 0, or implement if possible)
+    // 4. Reassigned FASTags (future logic)
     const reassignedCount = 0;
-    // 5. List all FASTags for this agent
+    // 5. List all FASTags assigned to this agent
     const [serialRows] = await pool.query(
       `SELECT 
           tag_serial, assigned_date, status, 
