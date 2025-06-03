@@ -12,14 +12,6 @@ const ROLES = [
   { label: "Channel Partner", value: "channel-partner" },
 ];
 
-const BANKS = [
-  { label: "IDFC", value: "IDFC" },
-  { label: "Axis", value: "Axis" },
-  { label: "ICICI", value: "ICICI" },
-  // ...add more as needed
-];
-
-// Defines which parent fields (dropdowns) to show for each role
 const ROLE_PARENT_FIELDS: Record<string, string[]> = {
   asm: [],
   "channel-partner": [],
@@ -37,8 +29,16 @@ type Agent = {
   role: string;
   parent_user_id?: number;
 };
+type Supplier = {
+  id: number;
+  name: string;
+};
+type Bank = {
+  id: number;
+  name: string;
+};
 
-export default function RegisterAgentForm() {
+export default function RegisterAgentModal() {
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -48,29 +48,34 @@ export default function RegisterAgentForm() {
     parent_asm: "",
     parent_manager: "",
     parent_team_leader: "",
-    bank_ids: [{ bank_name: "", bank_reference_id: "" }],
+    bank_ids: [{ supplier_name: "", bank_name: "", bank_reference_id: "" }],
   });
   const [message, setMessage] = useState("");
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
 
-  // Fetches all agents for dropdowns, always up to date
-  const fetchAgents = () => {
+  // Fetch agents, suppliers, banks on load
+  useEffect(() => {
     fetch("/api/agents/all")
       .then(res => res.json())
       .then(data => setAgents(data));
-  };
 
-  useEffect(() => {
-    fetchAgents();
+    fetch("/api/suppliers/all")
+      .then(res => res.json())
+      .then(data => setSuppliers(data));
+
+    fetch("/api/banks")
+      .then(res => res.json())
+      .then(data => setBanks(data));
   }, []);
 
-  // Handles normal and role-specific changes
+  // Field change handler
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({
       ...prev,
       [name]: value,
-      // When role changes, reset parent fields and area
       ...(name === "role"
         ? {
             parent_asm: "",
@@ -81,8 +86,8 @@ export default function RegisterAgentForm() {
               value === "toll-agent"
                 ? prev.bank_ids.length
                   ? prev.bank_ids
-                  : [{ bank_name: "", bank_reference_id: "" }]
-                : [{ bank_name: "", bank_reference_id: "" }],
+                  : [{ supplier_name: "", bank_name: "", bank_reference_id: "" }]
+                : [{ supplier_name: "", bank_name: "", bank_reference_id: "" }],
           }
         : {}),
     }));
@@ -92,7 +97,7 @@ export default function RegisterAgentForm() {
   const addBankId = () =>
     setForm(prev => ({
       ...prev,
-      bank_ids: [...prev.bank_ids, { bank_name: "", bank_reference_id: "" }],
+      bank_ids: [...prev.bank_ids, { supplier_name: "", bank_name: "", bank_reference_id: "" }],
     }));
 
   const removeBankId = (idx: number) =>
@@ -109,7 +114,7 @@ export default function RegisterAgentForm() {
       ),
     }));
 
-  // Renders a parent agent dropdown (for ASM, Manager, Team Leader)
+  // Parent dropdowns
   const getParentDropdown = (roleField: string, roleLabel: string, options: Agent[], value: string) => (
     <div className="flex flex-col">
       <label className="text-sm font-semibold mb-1">{roleLabel}</label>
@@ -129,11 +134,10 @@ export default function RegisterAgentForm() {
     </div>
   );
 
-  // Build payload and determine parent_user_id priority on submit
+  // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Determine parent_user_id priority (Team Leader > Manager > ASM > NULL)
     let parent_user_id = null;
     if (form.parent_team_leader) parent_user_id = Number(form.parent_team_leader);
     else if (form.parent_manager) parent_user_id = Number(form.parent_manager);
@@ -146,11 +150,10 @@ export default function RegisterAgentForm() {
 
     if (form.role !== "asm") delete payload.area;
     if (form.role !== "toll-agent") delete payload.bank_ids;
-    // Remove extra parent fields (backend only uses parent_user_id)
+    // Remove extra parent fields
     delete payload.parent_asm;
     delete payload.parent_manager;
     delete payload.parent_team_leader;
-
     if (!parent_user_id) payload.parent_user_id = null;
 
     const res = await fetch("/api/agents/register", {
@@ -170,13 +173,15 @@ export default function RegisterAgentForm() {
         parent_asm: "",
         parent_manager: "",
         parent_team_leader: "",
-        bank_ids: [{ bank_name: "", bank_reference_id: "" }],
+        bank_ids: [{ supplier_name: "", bank_name: "", bank_reference_id: "" }],
       });
-      fetchAgents(); // Always refresh agents after registration
+      // Optionally refetch agents
+      fetch("/api/agents/all")
+        .then(res => res.json())
+        .then(data => setAgents(data));
     }
   };
 
-  // Parent dropdown fields based on role (all optional, default is direct/admin/-)
   const parentFields = ROLE_PARENT_FIELDS[form.role] || [];
 
   return (
@@ -216,7 +221,7 @@ export default function RegisterAgentForm() {
           <option key={r.value} value={r.value}>{r.label}</option>
         ))}
       </select>
-      {/* Area input for ASM only */}
+      {/* Area for ASM only */}
       {form.role === "asm" && (
         <input
           name="area"
@@ -237,24 +242,39 @@ export default function RegisterAgentForm() {
       {parentFields.includes("team-leader") &&
         getParentDropdown("parent_team_leader", "Select Team Leader (TL)", agents.filter(a => a.role === "team-leader"), form.parent_team_leader)
       }
-      {/* Bank fields for Toll Agent only */}
+      {/* Bank & Supplier Details for Toll Agent */}
       {form.role === "toll-agent" && (
         <div>
-          <label className="block font-semibold mb-2">Bank Details</label>
+          <label className="block font-semibold mb-2">Bank & Supplier Details</label>
           {form.bank_ids.map((entry, idx) => (
             <div key={idx} className="flex gap-2 mb-2 items-center">
+              {/* Supplier dropdown */}
               <select
-                name="bank_name"
-                value={entry.bank_name}
-                onChange={e => handleBankIdChange(idx, "bank_name", e.target.value)}
+                name="supplier_name"
+                value={entry.supplier_name}
+                onChange={e => handleBankIdChange(idx, "supplier_name", e.target.value)}
                 required
                 className="border rounded px-3 py-2"
               >
-                <option value="">Select Bank</option>
-                {BANKS.map(b => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
+                <option value="">Select Supplier</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
                 ))}
               </select>
+              {/* Bank dropdown */}
+              <select
+                  name="bank_name"
+                  value={entry.bank_name}
+                  onChange={e => handleBankIdChange(idx, "bank_name", e.target.value)}
+                  required
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="">Select Bank</option>
+                  {banks.map((name: string) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              {/* Reference ID */}
               <input
                 name="bank_reference_id"
                 placeholder="Referral/Third Party ID"
@@ -273,7 +293,7 @@ export default function RegisterAgentForm() {
             className="bg-green-600 text-white px-3 py-1 rounded"
             onClick={addBankId}
           >
-            + Add Bank
+            + Add Bank/Supplier
           </button>
         </div>
       )}

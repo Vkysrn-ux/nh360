@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeSwitcher } from "@/components/theme-switcher"
-import { LogOut, Menu, Package, Users, Settings, CreditCard, UserCircle, BarChart3, X } from "lucide-react"
+import { LogOut, Menu, Package, Users, Settings, CreditCard, UserCircle, BarChart3, X, Ticket } from "lucide-react"
 import { useState, useEffect } from "react"
 import { logoutUser, getUserSession } from "@/lib/actions/auth-actions"
 
@@ -50,8 +50,11 @@ export function AdminHeader() {
     { href: "/admin/agents", label: "Agents", icon: <UserCircle className="mr-2 h-4 w-4" /> },
     { href: "/admin/suppliers", label: "Suppliers", icon: <Users className="mr-2 h-4 w-4" /> },
     // { href: "/admin/employees", label: "Employees", icon: <Users className="mr-2 h-4 w-4" /> },
-    { href: "/admin/commissions", label: "Commissions", icon: <Package className="mr-2 h-4 w-4" /> },
-    { href: "/admin/settings", label: "Settings", icon: <Settings className="mr-2 h-4 w-4" /> },
+    { href: "/admin/sales/new",   label: "New FASTag Sale",   icon: <CreditCard className="mr-2 h-4 w-4 text-orange-500" /> },
+    // { href: "/admin/commissions", label: "Commissions", icon: <Package className="mr-2 h-4 w-4" /> },
+    // { href: "/admin/settings", label: "Settings", icon: <Settings className="mr-2 h-4 w-4" /> },
+    { href: "/admin/tickets", label: "Tickets", icon : <Ticket className="mr-2 h-4 w-4" /> }
+
   ]
 
   return (

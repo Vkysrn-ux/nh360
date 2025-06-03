@@ -326,7 +326,7 @@ export default function AdminAgentsPage() {
                               (agent.status || "Active").slice(1).toLowerCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell>{agent.fastags_available}</TableCell>
+                        <TableCell>{agent.total_fastags}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
