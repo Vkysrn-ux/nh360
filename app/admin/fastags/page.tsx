@@ -223,14 +223,14 @@ export default function AdminFastagsPage() {
             <p className="text-muted-foreground">Manage all FASTags in the system.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/*<Button onClick={() => setShowAddForm((prev) => !prev)}>
+            <Button onClick={() => setShowAddForm((prev) => !prev)}>
               <Plus className="mr-2 h-4 w-4" />
               {showAddForm ? "Close Add Form" : "Add FASTag"}
             </Button>
             <Button variant="outline" onClick={() => setShowBulkForm((prev) => !prev)}>
               <Upload className="mr-2 h-4 w-4" />
               {showBulkForm ? "Close Bulk Form" : "Bulk Add"}
-            </Button>*/}
+            </Button>*
             <Button variant="outline" onClick={() => setShowBulkTransfer(true)}>
               <Download className="mr-2 h-4 w-4" />
               Bulk Transfer
