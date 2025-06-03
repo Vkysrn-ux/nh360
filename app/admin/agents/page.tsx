@@ -14,6 +14,17 @@ import type { Agent } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RegisterAgentForm from "@/components/admin/registeragentform";
 
+
+const ROLE_ORDER = {
+  asm: 1,
+  manager: 2,
+  tl: 3,
+  'toll-agent': 4,
+  shop: 5,
+  showroom: 5,
+};
+
+
 // --- Hierarchy helpers ---
 function buildAgentTree(agents) {
   const idMap = {};
@@ -85,6 +96,23 @@ function flattenTreeWithExpand(tree, expandedMap, setExpandedMap, searchQuery, f
     }
   });
   return rows;
+}
+
+// --- Hierarchy Modal Rendering Helper ---
+function renderHierarchyRows(tree, level = 0) {
+  if (!Array.isArray(tree)) return null;
+  return tree.flatMap(agent => [
+    <TableRow key={agent.id}>
+      <TableCell style={{ paddingLeft: level * 28, fontWeight: level === 0 ? 'bold' : undefined }}>
+        {agent.name}
+      </TableCell>
+      <TableCell>{agent.role}</TableCell>
+      <TableCell>{agent.total_fastags ?? 0}</TableCell>
+      <TableCell>{agent.assigned ?? 0}</TableCell>
+      <TableCell>{agent.sold ?? 0}</TableCell>
+    </TableRow>,
+    ...(agent.children?.length ? renderHierarchyRows(agent.children, level + 1) : [])
+  ]);
 }
 
 export default function AdminAgentsPage() {
@@ -371,7 +399,7 @@ export default function AdminAgentsPage() {
           </CardContent>
         </Card>
 
-        {/* --- Modal/details logic unchanged --- */}
+        {/* --- Modal/details logic --- */}
         {selectedAgent && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-full relative">
@@ -504,7 +532,7 @@ export default function AdminAgentsPage() {
                   <h3 className="font-semibold mb-2">Agent Hierarchy</h3>
                   {loadingHierarchy ? (
                     <div>Loading hierarchy...</div>
-                  ) : hierarchy?.agent_tree && hierarchy.agent_tree.some(a => a.children && a.children.length > 0) ? (
+                  ) : hierarchy?.agent_tree && hierarchy.agent_tree.length > 0 ? (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -516,12 +544,7 @@ export default function AdminAgentsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {/* Hierarchy details in modal, can be similar flatten logic if you want */}
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground">
-                            (Hierarchy modal details go here)
-                          </TableCell>
-                        </TableRow>
+                        {renderHierarchyRows(hierarchy.agent_tree)}
                       </TableBody>
                     </Table>
                   ) : (
