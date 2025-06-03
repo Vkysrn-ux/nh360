@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
-// Helper to map short code to full serial
+// Helpers for FASTag serial handling
 function findFullSerial(serials, unique) {
   const found = serials.find(s => s.tag_serial.split("-").pop() === unique);
   return found ? found.tag_serial : unique;
@@ -20,10 +20,8 @@ function sortedSerials(serials, prefix = "") {
     .filter(s => !isNaN(s.num))
     .sort((a, b) => a.num - b.num);
 }
-
-// NEW: Calculate dynamic available count
-function getDynamicAvailable(rows, allSerialsCache, row, rowIdx, transferFrom) {
-  const key = `${row.bank}-${row.fastagClass}-${transferFrom}`;
+function getDynamicAvailable(rows, allSerialsCache, row, rowIdx, transferFromUser) {
+  const key = `${row.bank}-${row.fastagClass}-${transferFromUser}`;
   let allSerials = allSerialsCache[key] || [];
   rows.forEach((r, i) => {
     if (
@@ -51,12 +49,9 @@ function getDynamicAvailable(rows, allSerialsCache, row, rowIdx, transferFrom) {
   }
   return allSerials.length;
 }
-
-// NEW: Get available short codes for a row (exclude picked serials in other rows)
 function getAvailableShortCodesForRow(rows, row, rowIdx) {
   const { bank, fastagClass, prefix } = row;
   const allShortCodes = sortedSerials(row.availableSerials, prefix).map(s => s.full.split("-").pop());
-
   let pickedShortCodes = [];
   rows.forEach((r, idx) => {
     if (
@@ -77,16 +72,11 @@ function getAvailableShortCodesForRow(rows, row, rowIdx) {
       }
     }
   });
-
   return allShortCodes.filter(sc => !pickedShortCodes.includes(sc));
 }
-
-// Get available end serials for a row (based on chosen startSerial and quantity)
 function getAvailableEndShortCodesForRow(rows, row, rowIdx) {
-  // Only show as end serial those available after current start serial for the current row's quantity
   const prefix = row.prefix;
   const serialObjs = sortedSerials(row.availableSerials, prefix);
-  // Remove serials picked in other rows
   let pickedSerials = [];
   rows.forEach((r, idx) => {
     if (
@@ -107,11 +97,7 @@ function getAvailableEndShortCodesForRow(rows, row, rowIdx) {
       }
     }
   });
-
-  // Filter out picked serials
   const filteredSerialObjs = serialObjs.filter(s => !pickedSerials.includes(s.full));
-
-  // If no startSerial, show all filtered. Else, show the one that would be at the end of the picked range
   if (!row.startSerial) {
     return filteredSerialObjs.map(s => s.full.split("-").pop());
   }
@@ -121,19 +107,36 @@ function getAvailableEndShortCodesForRow(rows, row, rowIdx) {
   return [filteredSerialObjs[startIdx + qty - 1]?.full.split("-").pop()].filter(Boolean);
 }
 
-export default function BulkTransferModal({ open, onClose, banks, classes, agents, onSuccess }) {
+export default function BulkTransferModal({ open, onClose, banks, classes, users, onSuccess }) {
+  // Roles you support (edit as needed)
+  const roles = [
+    { label: "Admin", value: "admin" },
+    { label: "ASM", value: "asm" },
+    { label: "Team Leader", value: "tl" },
+    { label: "Manager", value: "manager" },
+    { label: "Shop", value: "shop" },
+    { label: "Showroom", value: "showroom" },
+    { label: "Toll Agent", value: "toll-agent" }
+  ];
+
+  // Modal state
+  const [transferFromRole, setTransferFromRole] = useState("admin");
+  const [transferFromUser, setTransferFromUser] = useState("");
+  const [transferToRole, setTransferToRole] = useState("");
+  const [transferToUser, setTransferToUser] = useState("");
+
   const [rows, setRows] = useState([
     { bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1 }
   ]);
   const [loading, setLoading] = useState(false);
-  const [transferFrom, setTransferFrom] = useState("admin");
-  const [transferTo, setTransferTo] = useState("");
   const [allSerialsCache, setAllSerialsCache] = useState({});
 
+  // Load serials when FROM changes
   useEffect(() => {
     rows.forEach((row, i) => {
-      if (row.bank && row.fastagClass && transferFrom) {
-        const key = `${row.bank}-${row.fastagClass}-${transferFrom}`;
+      const fromKey = transferFromRole === "admin" ? "admin" : transferFromUser;
+      if (row.bank && row.fastagClass && fromKey) {
+        const key = `${row.bank}-${row.fastagClass}-${fromKey}`;
         if (allSerialsCache[key]) {
           setRows(rows =>
             rows.map((r, idx) => idx === i
@@ -143,7 +146,7 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
           );
         } else {
           let url = `/api/fastags/available?bank=${row.bank}&class=${row.fastagClass}`;
-          if (transferFrom !== "admin") url += `&assigned_to=${transferFrom}`;
+          if (fromKey !== "admin") url += `&assigned_to=${fromKey}`;
           fetch(url)
             .then(async res => {
               if (!res.ok) return [];
@@ -162,8 +165,9 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
       }
     });
     // eslint-disable-next-line
-  }, [rows.map(r => r.bank + r.fastagClass).join(","), transferFrom]);
+  }, [rows.map(r => r.bank + r.fastagClass).join(","), transferFromRole, transferFromUser]);
 
+  // Row handlers
   const getSelectedSerials = (bank, fastagClass, prefix, excludeIdx) => {
     let serials = [];
     rows.forEach((row, idx) => {
@@ -189,9 +193,10 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
   };
 
   const handleRowChange = (i, field, value) => {
+    const fromKey = transferFromRole === "admin" ? "admin" : transferFromUser;
     setRows(rows => rows.map((row, idx) => {
       if (idx !== i) return row;
-      const key = `${row.bank}-${row.fastagClass}-${transferFrom}`;
+      const key = `${row.bank}-${row.fastagClass}-${fromKey}`;
       const allSerials = allSerialsCache[key] || [];
       const prefix = field === "prefix" ? value : row.prefix;
       const otherSelected = getSelectedSerials(row.bank, row.fastagClass, prefix, i);
@@ -250,7 +255,18 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
   const addRow = () => setRows(r => [...r, { bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1 }]);
   const removeRow = i => setRows(r => r.length === 1 ? r : r.filter((_, idx) => idx !== i));
 
-  const canTransfer = !!transferFrom && !!transferTo &&
+  // Validation for transfer allowed
+  const canTransfer =
+    !!transferFromRole &&
+    (transferFromRole === "admin" || !!transferFromUser) &&
+    !!transferToRole &&
+    (transferToRole === "admin" || !!transferToUser) &&
+    !(
+      transferFromRole === transferToRole &&
+      transferFromRole !== "admin" &&
+      transferFromUser &&
+      transferFromUser === transferToUser
+    ) &&
     rows.every(row =>
       row.bank &&
       row.fastagClass &&
@@ -258,12 +274,13 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
       row.startSerial &&
       row.quantity > 0 &&
       row.endSerial
-    ) &&
-    transferFrom !== transferTo;
+    );
 
   const handleTransfer = async () => {
     setLoading(true);
     try {
+      const fromKey = transferFromRole === "admin" ? "admin" : transferFromUser;
+      const toKey = transferToRole === "admin" ? "admin" : transferToUser;
       const assignments = rows
         .map(row => {
           const serialObjs = sortedSerials(row.availableSerials, row.prefix);
@@ -275,22 +292,20 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
             bank: row.bank,
             fastagClass: row.fastagClass,
             prefix: row.prefix,
-            from: transferFrom,
-            agentId: transferTo, 
-            to: transferTo,
-            serials,
+            fromRole: transferFromRole,
+            from: fromKey,
+            toRole: transferToRole,
+            agentId: toKey,
+            to: toKey,
+            serials
           };
         })
         .filter(a => a.from && a.to && Array.isArray(a.serials) && a.serials.length > 0);
-
       if (assignments.length === 0) {
         alert("Please fill all required fields and select at least one serial for each transfer.");
         setLoading(false);
         return;
       }
-
-      console.log("Sending assignments", assignments);
-
       const res = await fetch("/api/fastags/bulk-transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -298,16 +313,8 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
       });
       const result = await res.json();
       if (result.success) {
-        const totalAssigned = assignments.reduce((sum, a) => sum + a.serials.length, 0);
-        let targetName = "Admin Warehouse";
-        if (transferTo !== "admin") {
-          const agentObj = agents.find(a => String(a.id) === transferTo);
-          if (agentObj) targetName = agentObj.name;
-        }
-        alert(`Total ${totalAssigned} FASTags transferred to ${targetName} on ${new Date().toLocaleDateString()}`);
-        setRows([
-          { bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1 }
-        ]);
+        alert(`Total ${assignments.reduce((sum, a) => sum + a.serials.length, 0)} FASTags transferred.`);
+        setRows([{ bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1 }]);
         onSuccess && onSuccess();
         onClose();
       } else {
@@ -318,60 +325,93 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
     }
   };
 
-  const transferFromOptions = [
-    { label: "Admin Warehouse", value: "admin" },
-    ...agents.map(a => ({ label: a.name, value: String(a.id) }))
-  ];
-  const transferToOptions =
-    transferFrom === "admin"
-      ? agents.map(a => ({ label: a.name, value: String(a.id) }))
-      : [
-        { label: "Admin Warehouse", value: "admin" },
-        ...agents.filter(a => String(a.id) !== transferFrom)
-          .map(a => ({ label: a.name, value: String(a.id) }))
-      ];
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Bulk Transfer FASTags</DialogTitle>
         </DialogHeader>
-        <div className="flex gap-3 mb-4">
-          <Select value={transferFrom} onValueChange={val => {
-            setTransferFrom(val);
-            setTransferTo("");
-            setRows([{
-              bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1
-            }]);
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {/* Transfer From Role */}
+          <Select value={transferFromRole} onValueChange={val => {
+            setTransferFromRole(val);
+            setTransferFromUser("");
+            setRows([{ bank: "", fastagClass: "", prefix: "", availableSerials: [], startSerial: "", endSerial: "", quantity: 1 }]);
             setAllSerialsCache({});
           }}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Admin Warehouse" />
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Transfer From Role" />
             </SelectTrigger>
             <SelectContent>
-              {transferFromOptions.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              {roles.map(role => (
+                <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={transferTo} onValueChange={setTransferTo}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Transfer To" />
+          {/* Transfer From Name */}
+          {transferFromRole !== "admin" && (
+            <Select
+              value={transferFromUser}
+              onValueChange={val => setTransferFromUser(val)}
+              disabled={!transferFromRole}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Select Name" />
+              </SelectTrigger>
+              <SelectContent>
+                {(users || [])
+                  .filter(u => u.role === transferFromRole)
+                  .map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                  ))
+                }
+              </SelectContent>
+            </Select>
+          )}
+          {/* Transfer To Role */}
+          <Select value={transferToRole} onValueChange={val => {
+            setTransferToRole(val);
+            setTransferToUser("");
+          }}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Transfer To Role" />
             </SelectTrigger>
             <SelectContent>
-              {transferToOptions.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              {roles.map(role => (
+                <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {/* Transfer To Name */}
+          {transferToRole !== "admin" && (
+            <Select
+              value={transferToUser}
+              onValueChange={val => setTransferToUser(val)}
+              disabled={!transferToRole}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Select Name" />
+              </SelectTrigger>
+              <SelectContent>
+                {(users || [])
+                  .filter(u => u.role === transferToRole)
+                  // Prevent picking the same user as source and destination
+                  .filter(u => !(transferFromRole === transferToRole && transferFromUser === String(u.id)))
+                  .map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                  ))
+                }
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="flex flex-col gap-4">
           {rows.map((row, i) => {
+            const fromKey = transferFromRole === "admin" ? "admin" : transferFromUser;
             const serialObjs = sortedSerials(row.availableSerials, row.prefix);
             const prefixOptions = getPrefixes(row.availableSerials);
             const dynamicAvailable = row.bank && row.fastagClass && row.prefix
-              ? getDynamicAvailable(rows, allSerialsCache, row, i, transferFrom)
+              ? getDynamicAvailable(rows, allSerialsCache, row, i, fromKey)
               : row.availableSerials.length;
 
             return (
@@ -383,36 +423,28 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
                   </SelectContent>
                 </Select>
                 <Select value={row.fastagClass} onValueChange={val => handleRowChange(i, "fastagClass", val)}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Class" />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-48"><SelectValue placeholder="Class" /></SelectTrigger>
                   <SelectContent>
                     {classes.map(c => (
-                      <SelectItem key={c} value={c}>
-                        {c}{" "}
-                        {row.bank && c && row.prefix
-                          ? `(available: ${getDynamicAvailable(rows, allSerialsCache, { ...row, fastagClass: c }, i, transferFrom)})`
-                          : ""}
-                      </SelectItem>
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={row.prefix} onValueChange={val => handleRowChange(i, "prefix", val)}>
-                  <SelectTrigger className="w-36">
-                    <SelectValue placeholder="Select Prefix" />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-36"><SelectValue placeholder="Select Prefix" /></SelectTrigger>
                   <SelectContent>
-                    {prefixOptions.map(pfx => (
-                      <SelectItem key={pfx} value={pfx}>
-                        {pfx}{" "}
-                        {row.bank && row.fastagClass
-                          ? `(available: ${getDynamicAvailable(rows, allSerialsCache, { ...row, prefix: pfx }, i, transferFrom)})`
-                          : ""}
-                      </SelectItem>
-                    ))}
+                    {prefixOptions.map(pfx => {
+                      const availableCount = getDynamicAvailable(
+                        rows, allSerialsCache, { ...row, prefix: pfx }, i, fromKey
+                      );
+                      return (
+                        <SelectItem key={pfx} value={pfx}>
+                          {pfx} (available: {availableCount})
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
-                {/* Start Serial */}
                 <Input
                   className="w-36"
                   value={row.startSerial ? row.startSerial.split("-").pop() : ""}
@@ -426,7 +458,6 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
                     <option key={unique} value={unique} />
                   ))}
                 </datalist>
-                {/* Quantity */}
                 <Input
                   className="w-16"
                   type="number"
@@ -437,7 +468,6 @@ export default function BulkTransferModal({ open, onClose, banks, classes, agent
                   placeholder="Qty"
                   disabled={!row.prefix}
                 />
-                {/* End Serial */}
                 <Input
                   className="w-36"
                   value={row.endSerial ? row.endSerial.split("-").pop() : ""}

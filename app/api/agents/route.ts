@@ -21,7 +21,9 @@ export async function GET() {
         parent.role AS parent_role
       FROM users child
       LEFT JOIN users parent ON child.parent_user_id = parent.id
-      WHERE child.role IN ('toll-agent', 'agent', 'team-leader', 'executive', 'shop')
+      WHERE child.role IN (
+        'admin', 'asm', 'manager', 'team-leader', 'tl', 'shop', 'showroom', 'agent', 'toll-agent', 'executive'
+      )
       ORDER BY child.id DESC
     `);
     return NextResponse.json(rows);

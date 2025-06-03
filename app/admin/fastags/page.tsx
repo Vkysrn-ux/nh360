@@ -401,6 +401,7 @@ export default function AdminFastagsPage() {
           banks={uniqueBanks}
           classes={uniqueTypes}
           agents={agents}
+          users={agents}
           onSuccess={() => window.location.reload()}
         />
       </div>
