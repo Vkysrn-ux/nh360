@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         if (!bank_name || !bank_reference_id) continue;
 
         await pool.query(
-          `INSERT INTO agent_bank_ids (agent_id, bank_name, bank_reference_id)
+          `INSERT INTO users (agent_id, bank_name, bank_reference_id)
            VALUES (?, ?, ?)`,
           [userId, bank_name, bank_reference_id]
         );
