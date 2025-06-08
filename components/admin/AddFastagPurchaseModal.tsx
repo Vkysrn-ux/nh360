@@ -9,7 +9,6 @@ function expandSerials({ serialType, singleSerial, startSerial, endSerial }) {
   if (serialType === "single") {
     return [singleSerial.trim()];
   } else {
-    // Range logic
     const startMatch = startSerial.trim().match(/(.*?)(\d+)$/);
     const endMatch = endSerial.trim().match(/(.*?)(\d+)$/);
 
@@ -37,18 +36,28 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
   const [banks, setBanks] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Serial type toggle
-  const [serialType, setSerialType] = useState("single"); // "single" or "range"
+  const [serialType, setSerialType] = useState("single");
   const [singleSerial, setSingleSerial] = useState("");
   const [startSerial, setStartSerial] = useState("");
   const [endSerial, setEndSerial] = useState("");
 
-  // Fetch banks from API
+  // Fetch banks
   useEffect(() => {
     fetch("/api/banks")
       .then(res => res.json())
       .then(data => setBanks(data));
   }, []);
+
+  // Auto-generate batch number
+  useEffect(() => {
+    if (supplier?.name && bank && purchaseDate) {
+      const supplierCode = supplier.name.split(" ")[0]?.toUpperCase(); // "M2P"
+      const bankCode = bank.split(" ")[0]?.toUpperCase(); // "IDFC"
+      const [yyyy, mm, dd] = purchaseDate.split("-");
+      const shortDate = `${dd}${mm}${yyyy.slice(2)}`; // "080625"
+      setBatch(`${supplierCode}-${bankCode}-${shortDate}`);
+    }
+  }, [supplier, bank, purchaseDate]);
 
   async function handleSave() {
     const serials = expandSerials({ serialType, singleSerial, startSerial, endSerial });
@@ -72,7 +81,7 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
         purchase_price: purchasePrice,
         payment_type: paymentType,
         purchase_date: purchaseDate,
-        serials, // array of serials
+        serials,
       }),
     });
     setIsSaving(false);
@@ -91,7 +100,6 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
           <DialogTitle>Add FASTag Purchase for {supplier?.name}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 py-2">
-
           <div>
             <Label>FASTag Class</Label>
             <Select value={fastagClass} onValueChange={setFastagClass}>
@@ -118,7 +126,6 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
             </Select>
           </div>
 
-          {/* Serial Type Toggle */}
           <div>
             <Label>Serial Input Type</Label>
             <Select value={serialType} onValueChange={setSerialType}>
@@ -130,7 +137,6 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
             </Select>
           </div>
 
-          {/* Serial Inputs */}
           {serialType === "single" ? (
             <div>
               <Label>Serial Number</Label>
@@ -163,7 +169,7 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
 
           <div>
             <Label>Batch Number</Label>
-            <Input value={batch} onChange={e => setBatch(e.target.value)} placeholder="Batch number" />
+            <Input value={batch} readOnly placeholder="Auto-generated batch number" />
           </div>
 
           <div>
@@ -184,7 +190,11 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
 
           <div>
             <Label>Purchase Date</Label>
-            <Input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
+            <Input
+              type="date"
+              value={purchaseDate}
+              onChange={e => setPurchaseDate(e.target.value)}
+            />
           </div>
 
           <Button className="mt-2" onClick={handleSave} disabled={isSaving}>
