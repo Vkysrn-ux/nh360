@@ -35,13 +35,17 @@ export async function POST(req: NextRequest) {
     // Insert bank_ids (only if valid entries)
     if (Array.isArray(bank_ids) && bank_ids.length > 0) {
       for (const entry of bank_ids) {
-        const { bank_name, bank_reference_id } = entry;
-        if (!bank_name || !bank_reference_id) continue;
-        await pool.query(
-          "INSERT INTO agent_bank_ids (agent_id, bank_name, bank_reference_id) VALUES (?, ?, ?)",
-          [userId, bank_name, bank_reference_id]
-        );
-      }
+  const bankName = (entry.bank_name ?? "").trim();
+  const refId = (entry.bank_reference_id ?? "").trim();
+
+  if (!bankName || !refId) continue;
+
+  await pool.query(
+    "INSERT INTO agent_bank_ids (agent_id, bank_name, bank_reference_id) VALUES (?, ?, ?)",
+    [userId, bankName, refId]
+  );
+}
+
     }
 
     return NextResponse.json({ success: true, userId });
