@@ -55,12 +55,22 @@ export default function RegisterAgentModal() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
 
+  // Fetch agents, suppliers, banks on load
   useEffect(() => {
-    fetch("/api/agents/all").then(res => res.json()).then(setAgents);
-    fetch("/api/suppliers/all").then(res => res.json()).then(setSuppliers);
-    fetch("/api/banks").then(res => res.json()).then(setBanks);
+    fetch("/api/agents/all")
+      .then(res => res.json())
+      .then(data => setAgents(data));
+
+    fetch("/api/suppliers/all")
+      .then(res => res.json())
+      .then(data => setSuppliers(data));
+
+    fetch("/api/banks")
+      .then(res => res.json())
+      .then(data => setBanks(data));
   }, []);
 
+  // Field change handler
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({
@@ -83,6 +93,7 @@ export default function RegisterAgentModal() {
     }));
   };
 
+  // Dynamic handlers for bank_ids array
   const addBankId = () =>
     setForm(prev => ({
       ...prev,
@@ -103,6 +114,7 @@ export default function RegisterAgentModal() {
       ),
     }));
 
+  // Parent dropdowns
   const getParentDropdown = (roleField: string, roleLabel: string, options: Agent[], value: string) => (
     <div className="flex flex-col">
       <label className="text-sm font-semibold mb-1">{roleLabel}</label>
@@ -122,6 +134,7 @@ export default function RegisterAgentModal() {
     </div>
   );
 
+  // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,13 +149,8 @@ export default function RegisterAgentModal() {
     };
 
     if (form.role !== "asm") delete payload.area;
-    if (form.role !== "toll-agent") {
-      delete payload.bank_ids;
-    } else {
-      payload.bank_ids = (form.bank_ids || []).filter(entry =>
-        entry.bank_name?.trim() && entry.bank_reference_id?.trim()
-      );
-    }
+    if (form.role !== "toll-agent") delete payload.bank_ids;
+    // Remove extra parent fields
     delete payload.parent_asm;
     delete payload.parent_manager;
     delete payload.parent_team_leader;
@@ -167,7 +175,10 @@ export default function RegisterAgentModal() {
         parent_team_leader: "",
         bank_ids: [{ supplier_name: "", bank_name: "", bank_reference_id: "" }],
       });
-      fetch("/api/agents/all").then(res => res.json()).then(setAgents);
+      // Optionally refetch agents
+      fetch("/api/agents/all")
+        .then(res => res.json())
+        .then(data => setAgents(data));
     }
   };
 
@@ -189,6 +200,7 @@ export default function RegisterAgentModal() {
         placeholder="Phone"
         value={form.phone}
         onChange={handleChange}
+        required
         className="border rounded px-3 py-2"
       />
       <input
@@ -196,6 +208,7 @@ export default function RegisterAgentModal() {
         placeholder="Pincode"
         value={form.pincode}
         onChange={handleChange}
+        required
         className="border rounded px-3 py-2"
       />
       <select
@@ -208,6 +221,7 @@ export default function RegisterAgentModal() {
           <option key={r.value} value={r.value}>{r.label}</option>
         ))}
       </select>
+      {/* Area for ASM only */}
       {form.role === "asm" && (
         <input
           name="area"
@@ -218,22 +232,28 @@ export default function RegisterAgentModal() {
           className="border rounded px-3 py-2"
         />
       )}
+      {/* Parent dropdowns dynamically rendered */}
       {parentFields.includes("asm") &&
-        getParentDropdown("parent_asm", "Select ASM (Regional Manager)", agents.filter(a => a.role === "asm"), form.parent_asm)}
+        getParentDropdown("parent_asm", "Select ASM (Regional Manager)", agents.filter(a => a.role === "asm"), form.parent_asm)
+      }
       {parentFields.includes("manager") &&
-        getParentDropdown("parent_manager", "Select Manager", agents.filter(a => a.role === "manager"), form.parent_manager)}
+        getParentDropdown("parent_manager", "Select Manager", agents.filter(a => a.role === "manager"), form.parent_manager)
+      }
       {parentFields.includes("team-leader") &&
-        getParentDropdown("parent_team_leader", "Select Team Leader (TL)", agents.filter(a => a.role === "team-leader"), form.parent_team_leader)}
-
+        getParentDropdown("parent_team_leader", "Select Team Leader (TL)", agents.filter(a => a.role === "team-leader"), form.parent_team_leader)
+      }
+      {/* Bank & Supplier Details for Toll Agent */}
       {form.role === "toll-agent" && (
         <div>
           <label className="block font-semibold mb-2">Bank & Supplier Details</label>
           {form.bank_ids.map((entry, idx) => (
             <div key={idx} className="flex gap-2 mb-2 items-center">
+              {/* Supplier dropdown */}
               <select
                 name="supplier_name"
                 value={entry.supplier_name}
                 onChange={e => handleBankIdChange(idx, "supplier_name", e.target.value)}
+                required
                 className="border rounded px-3 py-2"
               >
                 <option value="">Select Supplier</option>
@@ -241,22 +261,26 @@ export default function RegisterAgentModal() {
                   <option key={s.id} value={s.name}>{s.name}</option>
                 ))}
               </select>
+              {/* Bank dropdown */}
               <select
-                name="bank_name"
-                value={entry.bank_name}
-                onChange={e => handleBankIdChange(idx, "bank_name", e.target.value)}
-                className="border rounded px-3 py-2"
-              >
-                <option value="">Select Bank</option>
-                {banks.map((b: any) => (
-                  <option key={b.id ?? b.name} value={b.name}>{b.name}</option>
-                ))}
-              </select>
+                  name="bank_name"
+                  value={entry.bank_name}
+                  onChange={e => handleBankIdChange(idx, "bank_name", e.target.value)}
+                  required
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="">Select Bank</option>
+                  {banks.map((name: string) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              {/* Reference ID */}
               <input
                 name="bank_reference_id"
                 placeholder="Referral/Third Party ID"
                 value={entry.bank_reference_id}
                 onChange={e => handleBankIdChange(idx, "bank_reference_id", e.target.value)}
+                required
                 className="border rounded px-3 py-2"
               />
               {form.bank_ids.length > 1 && (
