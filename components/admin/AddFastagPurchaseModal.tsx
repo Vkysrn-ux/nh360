@@ -110,8 +110,8 @@ function AddFastagPurchaseModal({ open, onClose, supplier, onSaved }) {
                 <SelectItem value="class6">Class 6</SelectItem>
                 <SelectItem value="class7">Class 7</SelectItem>
                 <SelectItem value="class12">Class 12</SelectItem>
-                <SelectItem value="class12">Class 15</SelectItem>
-                <SelectItem value="class12">Class 16</SelectItem>
+                <SelectItem value="class15">Class 15</SelectItem>
+                <SelectItem value="class16">Class 16</SelectItem>
               </SelectContent>
             </Select>
           </div>
