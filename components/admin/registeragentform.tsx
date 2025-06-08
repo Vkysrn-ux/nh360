@@ -200,7 +200,7 @@ export default function RegisterAgentModal() {
         placeholder="Phone"
         value={form.phone}
         onChange={handleChange}
-        required
+        
         className="border rounded px-3 py-2"
       />
       <input
@@ -208,7 +208,7 @@ export default function RegisterAgentModal() {
         placeholder="Pincode"
         value={form.pincode}
         onChange={handleChange}
-        required
+        
         className="border rounded px-3 py-2"
       />
       <select
