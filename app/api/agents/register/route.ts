@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     role = (role ?? "").trim();
     area = (area ?? "").trim();
 
-    if (!name || !phone || !pincode || !role) {
+    if (!name || phone || pincode || role) {
       return NextResponse.json(
         { error: "Name, Phone, Pincode, and Role are required." },
         { status: 400 }
