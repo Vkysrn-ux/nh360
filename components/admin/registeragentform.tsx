@@ -253,7 +253,7 @@ export default function RegisterAgentModal() {
                 name="supplier_name"
                 value={entry.supplier_name}
                 onChange={e => handleBankIdChange(idx, "supplier_name", e.target.value)}
-                required
+                
                 className="border rounded px-3 py-2"
               >
                 <option value="">Select Supplier</option>
@@ -266,7 +266,7 @@ export default function RegisterAgentModal() {
                   name="bank_name"
                   value={entry.bank_name}
                   onChange={e => handleBankIdChange(idx, "bank_name", e.target.value)}
-                  required
+                  
                   className="border rounded px-3 py-2"
                 >
                   <option value="">Select Bank</option>
@@ -280,7 +280,7 @@ export default function RegisterAgentModal() {
                 placeholder="Referral/Third Party ID"
                 value={entry.bank_reference_id}
                 onChange={e => handleBankIdChange(idx, "bank_reference_id", e.target.value)}
-                required
+                
                 className="border rounded px-3 py-2"
               />
               {form.bank_ids.length > 1 && (
