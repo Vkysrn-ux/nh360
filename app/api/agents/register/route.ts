@@ -14,22 +14,24 @@ export async function POST(req: NextRequest) {
       bank_ids = [],
     } = body;
 
-    name = (name ?? "").trim();
-    phone = (phone ?? "").trim();
-    pincode = (pincode ?? "").trim();
-    role = (role ?? "").trim();
-    area = (area ?? "").trim();
+    name = name.trim();
+    phone = phone.trim();
+    pincode = pincode.trim();
+    role = role.trim();
+    area = area.trim();
 
+    // ✅ Validate only name is required
     if (!name) {
       return NextResponse.json({ error: "Name is required." }, { status: 400 });
     }
 
-    // Optional validations
-    if (phone && !/^[0-9]{10,15}$/.test(phone)) {
+    // ✅ Validate phone only if provided
+    if (phone && !/^\d{10,15}$/.test(phone)) {
       return NextResponse.json({ error: "Invalid phone number." }, { status: 400 });
     }
 
-    if (pincode && !/^[0-9]{4,10}$/.test(pincode)) {
+    // ✅ Validate pincode only if provided
+    if (pincode && !/^\d{4,10}$/.test(pincode)) {
       return NextResponse.json({ error: "Invalid pincode." }, { status: 400 });
     }
 
@@ -56,8 +58,8 @@ export async function POST(req: NextRequest) {
     const [result] = await pool.query(query, params);
     const userId = (result as any).insertId;
 
-    // Handle bank_ids safely
-    if (role === "toll-agent" && Array.isArray(bank_ids)) {
+    // ✅ Insert bank_ids only if valid and non-empty
+    if (role === "toll-agent" && Array.isArray(bank_ids) && bank_ids.length > 0) {
       for (const entry of bank_ids) {
         const bank_name = typeof entry?.bank_name === "string" ? entry.bank_name.trim() : "";
         const bank_reference_id = typeof entry?.bank_reference_id === "string" ? entry.bank_reference_id.trim() : "";
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
         if (!bank_name || !bank_reference_id) continue;
 
         await pool.query(
-          `INSERT INTO users (agent_id, bank_name, bank_reference_id)
+          `INSERT INTO agent_bank_ids (agent_id, bank_name, bank_reference_id)
            VALUES (?, ?, ?)`,
           [userId, bank_name, bank_reference_id]
         );
@@ -73,9 +75,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, userId });
-
   } catch (error: any) {
-    console.error("Agent registration failed:", error); // Log exact error
+    console.error("Registration failed:", error); // 👈 Debugging log
     if (error?.code === "ER_DUP_ENTRY") {
       return NextResponse.json({ error: "Phone or Pincode already exists" }, { status: 409 });
     }
