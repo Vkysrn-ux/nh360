@@ -112,7 +112,7 @@ export default function BulkTransferModal({ open, onClose, banks, classes, users
   const roles = [
     { label: "Admin", value: "admin" },
     { label: "ASM", value: "asm" },
-    { label: "Team Leader", value: "tl" },
+    { label: "Team Leader", value: "team-leader" },
     { label: "Manager", value: "manager" },
     { label: "Shop", value: "shop" },
     { label: "Showroom", value: "showroom" },
