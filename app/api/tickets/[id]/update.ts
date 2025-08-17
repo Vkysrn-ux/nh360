@@ -1,27 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { pool } from '@/lib/db'
+// app/api/tickets/[id]/update.ts
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
 
-export async function POST(req: NextRequest, { params }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const ticket_id = params.id;
+    const ticket_id = Number(params.id);
+    if (!ticket_id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+
     const { status, details, comment, updated_by } = await req.json();
 
     // Update the main ticket
     await pool.query(
       `UPDATE tickets_nh
-       SET status=?, details=?, updated_at=NOW(), updated_by=?
-       WHERE id=?`,
-      [status, details, updated_by, ticket_id]
+       SET status = ?, details = ?, updated_at = NOW(), updated_by = ?
+       WHERE id = ?`,
+      [status ?? null, details ?? null, updated_by ?? null, ticket_id]
     );
 
     // Insert the comment into ticket_comments
-    await pool.query(
-      `INSERT INTO ticket_comments (ticket_id, comment, status, updated_by)
-       VALUES (?, ?, ?, ?)`,
-      [ticket_id, comment, status, updated_by]
-    );
+    if (comment && String(comment).trim()) {
+      await pool.query(
+        `INSERT INTO ticket_comments (ticket_id, comment, status, updated_by)
+         VALUES (?, ?, ?, ?)`,
+        [ticket_id, comment, status ?? null, updated_by ?? null]
+      );
+    }
 
-    return NextResponse.json({ message: "Ticket updated & comment added." });
+    return NextResponse.json({ message: "Ticket updated & (optional) comment added." });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
