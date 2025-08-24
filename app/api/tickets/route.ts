@@ -14,25 +14,71 @@ async function generateTicketNo(conn: PoolConnection): Promise<string> {
   const [rows] = await conn.query(
     "SELECT COUNT(*) AS count FROM tickets_nh WHERE DATE(created_at) = CURDATE()"
   );
-  // rows is RowDataPacket[]; TypeScript relax:
-  // @ts-ignore
+  // @ts-ignore - RowDataPacket
   const todayCount = rows?.[0]?.count || 0;
   const seq = String(todayCount + 1).padStart(3, "0");
   return `NH360-${todayStr}-${seq}`;
 }
 
-// GET: list all tickets (unchanged in spirit)
-export async function GET(_req: NextRequest) {
+// GET:
+// - default: ONLY parent tickets (sub-tickets excluded)
+// - ?parent_id=### -> only that parent's sub-tickets
+// - optional ?scope=all -> all tickets (parents + subs)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const parentId = searchParams.get("parent_id");
+  const scope = searchParams.get("scope");
+
   try {
+    if (parentId) {
+      // Children of one parent
+      const [rows] = await pool.query(
+        `
+        SELECT
+          t.id, t.ticket_no, t.subject, t.status, t.details, t.assigned_to,
+          t.created_at, t.updated_at
+        FROM tickets_nh t
+        WHERE t.parent_ticket_id = ?
+        ORDER BY t.created_at DESC
+        `,
+        [parentId]
+      );
+      return NextResponse.json(rows || []);
+    }
+
+    if (scope === "all") {
+      const [rows] = await pool.query(`
+        SELECT
+          t.*,
+          CASE
+            WHEN t.lead_received_from = 'Shop' AND u.role = 'shop' THEN u.name
+            ELSE NULL
+          END AS shop_name
+        FROM tickets_nh t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        ORDER BY t.created_at DESC
+      `);
+      return NextResponse.json(rows || []);
+    }
+
+    // ROOTS ONLY (keep subs out of the main list)
     const [rows] = await pool.query(`
       SELECT
         t.*,
         CASE
           WHEN t.lead_received_from = 'Shop' AND u.role = 'shop' THEN u.name
           ELSE NULL
-        END AS shop_name
+        END AS shop_name,
+        COALESCE(s.cnt, 0) AS subs_count
       FROM tickets_nh t
       LEFT JOIN users u ON t.assigned_to = u.id
+      LEFT JOIN (
+        SELECT parent_ticket_id, COUNT(*) AS cnt
+        FROM tickets_nh
+        WHERE parent_ticket_id IS NOT NULL
+        GROUP BY parent_ticket_id
+      ) s ON s.parent_ticket_id = t.id
+      WHERE t.parent_ticket_id IS NULL
       ORDER BY t.created_at DESC
     `);
     return NextResponse.json(rows || []);
@@ -41,12 +87,14 @@ export async function GET(_req: NextRequest) {
   }
 }
 
-// POST: create a parent ticket, and optional sub-tickets in one request
-// Body: { ...parentFields, sub_issues?: Array<{ subject, details, ...overrides }> }
+// POST:
+// 1) Create a single SUB-TICKET if body has parent_ticket_id.
+// 2) Otherwise create a PARENT ticket (and optional sub_issues[]).
 export async function POST(req: NextRequest) {
   const data = await req.json();
 
   const {
+    // shared fields
     vehicle_reg_no,
     subject,
     details,
@@ -58,26 +106,73 @@ export async function POST(req: NextRequest) {
     status,
     customer_name,
     comments,
-    sub_issues = [], // Array of partial ticket fields { subject, details, ... }
+
+    // for single sub-ticket creation
+    parent_ticket_id,
+
+    // for parent + many children creation
+    sub_issues = [],
   } = data || {};
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // 1) Insert parent
+    // --- CASE A: create only a sub-ticket (no new parent) ---
+    if (parent_ticket_id) {
+      const childTicketNo = await generateTicketNo(conn);
+
+      if (!subject || !String(subject).trim()) {
+        throw new Error("Subject is required for sub-ticket");
+      }
+
+      const [r]: any = await conn.query(
+        `INSERT INTO tickets_nh
+          (ticket_no, vehicle_reg_no, subject, details, phone, alt_phone, assigned_to,
+           lead_received_from, lead_by, status, customer_name, comments,
+           parent_ticket_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          childTicketNo,
+          vehicle_reg_no ?? "",
+          subject,
+          details ?? "",
+          phone ?? "",
+          alt_phone ?? null,
+          assigned_to ?? null,
+          lead_received_from ?? null,
+          lead_by ?? null,
+          status ?? "open",
+          customer_name ?? null,
+          comments ?? null,
+          parent_ticket_id,
+        ]
+      );
+
+      await conn.commit();
+      return NextResponse.json({
+        ok: true,
+        mode: "sub_only",
+        parent_id: parent_ticket_id,
+        child_id: r.insertId,
+        child_ticket_no: childTicketNo,
+      });
+    }
+
+    // --- CASE B: create parent (+ optional batch of sub_issues) ---
     const ticket_no_parent = await generateTicketNo(conn);
-    const [r1] = await conn.query(
+    const [r1]: any = await conn.query(
       `INSERT INTO tickets_nh
         (ticket_no, vehicle_reg_no, subject, details, phone, alt_phone, assigned_to,
-         lead_received_from, lead_by, status, customer_name, comments, parent_ticket_id, created_at, updated_at)
+         lead_received_from, lead_by, status, customer_name, comments,
+         parent_ticket_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NOW(), NOW())`,
       [
         ticket_no_parent,
-        vehicle_reg_no,
-        subject,
-        details,
-        phone,
+        vehicle_reg_no ?? "",
+        subject ?? "",
+        details ?? "",
+        phone ?? "",
         alt_phone ?? null,
         assigned_to ?? null,
         lead_received_from ?? null,
@@ -87,49 +182,35 @@ export async function POST(req: NextRequest) {
         comments ?? null,
       ]
     );
-    // @ts-ignore
     const parentId = r1.insertId as number;
 
-    // 2) Insert children (each a full ticket pointing to parent)
     let childrenCreated = 0;
-
     if (Array.isArray(sub_issues) && sub_issues.length > 0) {
       for (const row of sub_issues) {
-        const childTicketNo = await generateTicketNo(conn);
-
-        // Inherit fallbacks from parent if not explicitly set
         const c_subject = row.subject;
-        if (!c_subject || !String(c_subject).trim()) continue; // subject is the only strict req
+        if (!c_subject || !String(c_subject).trim()) continue;
 
-        const c_details = row.details ?? "";
-        const c_vehicle_reg_no = row.vehicle_reg_no ?? vehicle_reg_no ?? "";
-        const c_phone = row.phone ?? phone ?? "";
-        const c_alt_phone = row.alt_phone ?? alt_phone ?? null;
-        const c_assigned_to = row.assigned_to ?? assigned_to ?? null;
-        const c_lead_received_from = row.lead_received_from ?? lead_received_from ?? null;
-        const c_lead_by = row.lead_by ?? lead_by ?? null;
-        const c_status = row.status ?? "open";
-        const c_customer_name = row.customer_name ?? customer_name ?? null;
-        const c_comments = row.comments ?? null;
+        const childTicketNo = await generateTicketNo(conn);
 
         await conn.query(
           `INSERT INTO tickets_nh
             (ticket_no, vehicle_reg_no, subject, details, phone, alt_phone, assigned_to,
-             lead_received_from, lead_by, status, customer_name, comments, parent_ticket_id, created_at, updated_at)
+             lead_received_from, lead_by, status, customer_name, comments,
+             parent_ticket_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
           [
             childTicketNo,
-            c_vehicle_reg_no,
+            row.vehicle_reg_no ?? vehicle_reg_no ?? "",
             c_subject,
-            c_details,
-            c_phone,
-            c_alt_phone,
-            c_assigned_to,
-            c_lead_received_from,
-            c_lead_by,
-            c_status,
-            c_customer_name,
-            c_comments,
+            row.details ?? "",
+            row.phone ?? phone ?? "",
+            row.alt_phone ?? alt_phone ?? null,
+            row.assigned_to ?? assigned_to ?? null,
+            row.lead_received_from ?? lead_received_from ?? null,
+            row.lead_by ?? lead_by ?? null,
+            row.status ?? "open",
+            row.customer_name ?? customer_name ?? null,
+            row.comments ?? null,
             parentId,
           ]
         );
@@ -140,6 +221,7 @@ export async function POST(req: NextRequest) {
     await conn.commit();
     return NextResponse.json({
       ok: true,
+      mode: "parent_with_optional_subs",
       parent_id: parentId,
       parent_ticket_no: ticket_no_parent,
       children_created: childrenCreated,
@@ -152,7 +234,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH: Edit/Update selected fields on a ticket (kept from your version)
+// PATCH: update selected fields
 export async function PATCH(req: NextRequest) {
   try {
     const data = await req.json();
