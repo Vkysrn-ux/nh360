@@ -1,24 +1,7 @@
 // app/api/tickets/[id]/children/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import type { PoolConnection } from "mysql2/promise";
-
-// Generate daily ticket number: NH360-YYYYMMDD-###
-async function generateTicketNo(conn: PoolConnection): Promise<string> {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const todayStr = `${yyyy}${mm}${dd}`;
-
-  const [rows] = await conn.query(
-    "SELECT COUNT(*) AS count FROM tickets_nh WHERE DATE(created_at) = CURDATE()"
-  );
-  // @ts-ignore
-  const todayCount = rows?.[0]?.count ?? 0;
-  const seq = String(todayCount + 1).padStart(3, "0");
-  return `NH360-${todayStr}-${seq}`;
-}
+import { generateChildTicketNo } from "@/lib/ticket-numbers";
 
 // GET: list all child sub-tickets for a parent ticket
 export async function GET(
@@ -82,7 +65,7 @@ export async function POST(
 
     await conn.beginTransaction();
 
-    const ticket_no = await generateTicketNo(conn);
+    const ticket_no = await generateChildTicketNo(conn, parentId, parent.ticket_no);
 
     // Inherit/override fields
     const vehicle_reg_no = body.vehicle_reg_no ?? parent.vehicle_reg_no ?? "";
