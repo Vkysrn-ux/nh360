@@ -104,7 +104,11 @@ export async function POST(
     const newId = Number(r.insertId);
 
     await conn.commit();
-    return NextResponse.json({ ok: true, id: newId, ticket_no }, { status: 201 });
+    const [[child]]: any = await conn.query(
+      "SELECT * FROM tickets_nh WHERE id = ?",
+      [newId],
+    );
+    return NextResponse.json({ ok: true, child }, { status: 201 });
   } catch (e: any) {
     await conn.rollback();
     console.error("POST /api/tickets/[id]/children error:", e);

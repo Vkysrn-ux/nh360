@@ -133,12 +133,15 @@ export async function POST(req: NextRequest) {
       );
 
       await conn.commit();
+      const [[child]]: any = await conn.query(
+        "SELECT * FROM tickets_nh WHERE id = ?",
+        [r.insertId],
+      );
       return NextResponse.json({
         ok: true,
         mode: "sub_only",
         parent_id: parent_ticket_id,
-        child_id: r.insertId,
-        child_ticket_no: childTicketNo,
+        child,
       });
     }
 
@@ -202,12 +205,22 @@ export async function POST(req: NextRequest) {
     }
 
     await conn.commit();
+    const [[parentRow]]: any = await conn.query(
+      "SELECT * FROM tickets_nh WHERE id = ?",
+      [parentId],
+    );
+    const [childRows]: any = await conn.query(
+      "SELECT * FROM tickets_nh WHERE parent_ticket_id = ? ORDER BY created_at DESC",
+      [parentId],
+    );
     return NextResponse.json({
       ok: true,
       mode: "parent_with_optional_subs",
       parent_id: parentId,
       parent_ticket_no: ticket_no_parent,
       children_created: childrenCreated,
+      parent: parentRow,
+      children: childRows,
     });
   } catch (e: any) {
     await conn.rollback();
