@@ -1,24 +1,7 @@
 // app/api/tickets/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import type { PoolConnection } from "mysql2/promise";
-
-// --- utility: make a ticket_no like NH360-YYYYMMDD-###, inside a txn ---
-async function generateTicketNo(conn: PoolConnection): Promise<string> {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const todayStr = `${yyyy}${mm}${dd}`;
-
-  const [rows] = await conn.query(
-    "SELECT COUNT(*) AS count FROM tickets_nh WHERE DATE(created_at) = CURDATE()"
-  );
-  // @ts-ignore - RowDataPacket
-  const todayCount = rows?.[0]?.count || 0;
-  const seq = String(todayCount + 1).padStart(3, "0");
-  return `NH360-${todayStr}-${seq}`;
-}
+import { generateTicketNo, generateChildTicketNo } from "@/lib/ticket-numbers";
 
 // GET:
 // - default: ONLY parent tickets (sub-tickets excluded)
@@ -120,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     // --- CASE A: create only a sub-ticket (no new parent) ---
     if (parent_ticket_id) {
-      const childTicketNo = await generateTicketNo(conn);
+      const childTicketNo = await generateChildTicketNo(conn, parent_ticket_id);
 
       if (!subject || !String(subject).trim()) {
         throw new Error("Subject is required for sub-ticket");
@@ -190,7 +173,7 @@ export async function POST(req: NextRequest) {
         const c_subject = row.subject;
         if (!c_subject || !String(c_subject).trim()) continue;
 
-        const childTicketNo = await generateTicketNo(conn);
+        const childTicketNo = await generateChildTicketNo(conn, parentId, ticket_no_parent);
 
         await conn.query(
           `INSERT INTO tickets_nh
